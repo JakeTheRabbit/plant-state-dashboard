@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0c10">
+<meta name="description" content="Lever Lab — the grow room as one coupled system. Pull a lever, watch the cascade. An interactive bridge between the Grow-Room Levers field guide and the Plant-State Intelligence dashboard.">
+<meta property="og:title" content="Lever Lab — the grow room as one system">
+<meta property="og:description" content="Pull a lever, watch the cascade. Stage envelopes, the four balances, root-cause diagnostics, dew-point and EC-stacking forecasts — interactive.">
+<title>Lever Lab · Plant-State Dashboards</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style>
+  :root{--bg:#0a0c10;--bg2:#0f1318;--card:#141a21;--card2:#19212a;--hair:rgba(255,255,255,.08);
+    --ink:#e7ecf2;--ink2:#aab4c0;--ink3:#727d8a;--ok:#34d399;--warn:#fbbf24;--crit:#f87171;--cool:#38bdf8;--accent:#34d399;--maxw:1180px;}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation-duration:.001ms!important}}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+  ::selection{background:rgba(52,211,153,.25)}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  img{max-width:100%}
+  .amb{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .amb i{position:absolute;border-radius:50%;filter:blur(120px);opacity:.16}
+  .amb i:nth-child(1){top:-12rem;left:-8rem;width:40rem;height:40rem;background:#10b981}
+  .amb i:nth-child(2){top:40%;right:-14rem;width:34rem;height:34rem;background:#22d3ee;opacity:.08}
+  .shell{max-width:var(--maxw);margin:0 auto;padding:0 clamp(18px,4vw,36px)}
+  .glass{background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--hair)}
+  [x-cloak]{display:none!important}
+
+  /* hero */
+  .hero{padding:clamp(34px,6vw,72px) 0 clamp(20px,3vw,36px)}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ok);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);padding:6px 12px;border-radius:999px}
+  h1{font-size:clamp(2rem,1.3rem+3.2vw,3.3rem);line-height:1.06;letter-spacing:-.025em;margin:20px 0 12px;font-weight:800}
+  h1 .grad{background:linear-gradient(135deg,#6ee7b7,#34d399 50%,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{font-size:1.18rem;color:var(--ink2);max-width:60ch}
+  .cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+  .btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;border-radius:12px;font-weight:600;font-size:14.5px;border:1px solid var(--hair);transition:transform .15s,border-color .15s}
+  .btn:hover{text-decoration:none;transform:translateY(-2px)}
+  .btn.primary{background:linear-gradient(135deg,#34d399,#10b981);color:#06281c;border-color:transparent}
+  .btn.ghost{background:var(--card);color:var(--ink)}.btn.ghost:hover{border-color:var(--ink3)}
+
+  section{margin:0 0 22px;scroll-margin-top:20px}
+  .sec-h{display:flex;align-items:center;gap:12px;margin:38px 2px 14px}
+  .sec-h .ix{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--ok);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);flex:none}
+  .sec-h h2{font-size:1.35rem;letter-spacing:-.01em;font-weight:750;margin:0}
+  .sec-h .sub{margin-left:auto;font-size:12.5px;color:var(--ink3);text-align:right}
+  .panel{border-radius:18px;padding:clamp(16px,2.4vw,24px)}
+
+  .seg{display:inline-flex;gap:4px;background:var(--card2);border:1px solid var(--hair);border-radius:12px;padding:4px;flex-wrap:wrap}
+  .seg button{font:inherit;font-size:13px;color:var(--ink2);background:transparent;border:0;border-radius:9px;padding:8px 13px;cursor:pointer;min-height:40px}
+  .seg button.on{background:var(--ok);color:#06281c;font-weight:700}
+  .seg button:hover:not(.on){color:var(--ink);background:rgba(255,255,255,.05)}
+
+  table.env{width:100%;border-collapse:separate;border-spacing:0;margin-top:14px;font-size:13.5px}
+  table.env th{text-align:left;padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:600;border-bottom:1px solid var(--hair)}
+  table.env td{padding:10px 12px;border-bottom:1px solid var(--hair);color:var(--ink2)}
+  table.env tr td:first-child{color:var(--ink);font-weight:600}
+  table.env tr.active{background:rgba(52,211,153,.08)}
+  table.env tr.active td:first-child{color:var(--ok)}
+  table.env .u{color:var(--ink3);font-size:11px}
+  @media(max-width:640px){table.env{display:block;overflow-x:auto;white-space:nowrap}}
+
+  .grid2{display:grid;gap:16px;grid-template-columns:1fr}
+  @media(min-width:860px){.grid2{grid-template-columns:1fr 1fr}}
+  .grid2.lever{grid-template-columns:1fr}
+  @media(min-width:860px){.grid2.lever{grid-template-columns:340px 1fr}}
+
+  select,input[type=range]{font:inherit}
+  select{width:100%;background:var(--card2);color:var(--ink);border:1px solid var(--hair);border-radius:11px;padding:11px 12px;font-size:14.5px}
+  .dir{display:inline-flex;gap:4px;margin-top:10px}
+  .dir button{font:inherit;font-size:13px;color:var(--ink2);background:var(--card2);border:1px solid var(--hair);border-radius:10px;padding:9px 14px;cursor:pointer;min-height:42px;display:inline-flex;align-items:center;gap:6px}
+  .dir button.on{background:var(--ok);color:#06281c;font-weight:700;border-color:transparent}
+  .lever-note{margin-top:12px;font-size:13px;color:var(--ink2);background:var(--bg2);border:1px solid var(--hair);border-radius:11px;padding:12px 14px}
+
+  .cascade{display:flex;flex-direction:column;gap:8px}
+  .cstep{display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:12px;background:var(--card2);border:1px solid var(--hair);animation:rise .3s ease both}
+  @keyframes rise{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+  .cstep .ar{font-weight:800;font-size:15px;width:1.4em;text-align:center;flex:none}
+  .cstep.up .ar{color:var(--warn)}.cstep.down .ar{color:var(--cool)}.cstep.risk{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.06)}
+  .cstep .lab{font-weight:600;font-size:14px}
+  .cstep .nt{color:var(--ink3);font-size:12.5px;margin-left:auto;text-align:right;max-width:42%}
+  .strain{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}
+  .chip{font-size:12px;padding:6px 11px;border-radius:999px;border:1px solid var(--hair);background:var(--card2);color:var(--ink2);display:inline-flex;align-items:center;gap:6px}
+  .chip.warn{border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1);color:#f3cf6b}
+  .chip b{color:var(--ink);font-weight:600}
+
+  /* balances */
+  .bals{display:grid;gap:16px;grid-template-columns:1fr}
+  @media(min-width:720px){.bals{grid-template-columns:1fr 1fr}}
+  .bal{border-radius:16px;padding:16px 18px}
+  .bal .bh{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .bal .bh .em{font-size:1.3em}.bal .bh h3{margin:0;font-size:1.02rem;font-weight:700}
+  .bal .bh .net{margin-left:auto;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px}
+  .net.pos{background:rgba(251,191,36,.14);color:#f3cf6b;border:1px solid rgba(251,191,36,.35)}
+  .net.neg{background:rgba(56,189,248,.14);color:#7dd3fc;border:1px solid rgba(56,189,248,.35)}
+  .net.bal{background:rgba(52,211,153,.14);color:#6ee7b7;border:1px solid rgba(52,211,153,.35)}
+  .io{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px}
+  .io .col .t{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px}
+  .io .col ul{list-style:none;margin:0;padding:0}.io .col li{padding:2px 0;color:var(--ink2)}
+  .io .inc .t{color:#f3cf6b}.io .outc .t{color:#7dd3fc}
+  .netbar{position:relative;height:12px;border-radius:999px;background:var(--card2);margin:14px 0 6px;border:1px solid var(--hair);overflow:hidden}
+  .netbar .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--ink3)}
+  .netbar .fill{position:absolute;top:0;bottom:0;left:50%;transition:width .4s,background .4s}
+  .bal .cl{margin-top:8px;font-size:12.5px;color:var(--ink2)}
+  .bal .cl.alert{color:#f3cf6b}
+  .rng{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:12.5px;color:var(--ink3)}
+  .rng input{flex:1;accent-color:var(--ok)}
+
+  /* diagnostics */
+  .diaglist{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+  .diaglist button{font:inherit;font-size:12.5px;color:var(--ink2);background:var(--card2);border:1px solid var(--hair);border-radius:999px;padding:8px 13px;cursor:pointer;min-height:38px}
+  .diaglist button.on{background:var(--crit);color:#fff;border-color:transparent;font-weight:600}
+  .diag .row{display:grid;gap:12px;grid-template-columns:1fr}
+  @media(min-width:760px){.diag .row{grid-template-columns:1fr 1fr}}
+  .diag .bx{border-radius:13px;padding:14px 16px;background:var(--bg2);border:1px solid var(--hair)}
+  .diag .bx .t{font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+  .diag .cause .t{color:var(--warn)}.diag .check .t{color:var(--ok)}
+  .diag ul{list-style:none;margin:0;padding:0}.diag li{padding:4px 0 4px 18px;position:relative;color:var(--ink2);font-size:13.5px}
+  .diag li:before{content:"";position:absolute;left:3px;top:.7em;width:5px;height:5px;border-radius:50%;background:var(--ink3)}
+  .chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px;font-size:12.5px}
+  .chain .n{background:var(--card2);border:1px solid var(--hair);border-radius:8px;padding:6px 10px;color:var(--ink2)}
+  .chain .ar{color:var(--ok);font-weight:800}
+
+  .fm{display:grid;gap:12px;grid-template-columns:1fr;margin-top:6px}
+  @media(min-width:680px){.fm{grid-template-columns:1fr 1fr}}
+  .fmcard{border-radius:14px;padding:14px 16px;background:var(--card2);border:1px solid var(--hair);border-left:4px solid var(--warn)}
+  .fmcard .id{font-size:11px;font-weight:800;color:var(--warn);letter-spacing:.04em}
+  .fmcard h4{margin:3px 0 6px;font-size:.98rem}
+  .fmcard p{margin:0;font-size:12.5px;color:var(--ink2)}
+  .fmcard .cz{margin-top:8px;font-size:12px;color:var(--ink3)}.fmcard .cz b{color:var(--ink2)}
+
+  /* derived widgets */
+  .wid{display:grid;gap:16px;grid-template-columns:1fr}
+  @media(min-width:760px){.wid{grid-template-columns:1fr 1fr}}
+  .big{font-size:2.1rem;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .big small{font-size:.45em;color:var(--ink3);font-weight:600}
+  .marker{margin-top:14px}
+  .ecbars{display:flex;align-items:flex-end;gap:6px;height:120px;margin-top:14px}
+  .ecbars .b{flex:1;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--ok),#10b981);position:relative;transition:height .4s,background .4s;min-height:3px}
+  .ecbars .b.hot{background:linear-gradient(180deg,#fca5a5,#ef4444)}
+  .ecbars .b .v{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:10px;color:var(--ink3)}
+  .ecbars .b .h{position:absolute;bottom:-17px;left:0;right:0;text-align:center;font-size:10px;color:var(--ink3)}
+  .verdict{margin-top:26px;font-size:13.5px;padding:11px 14px;border-radius:11px}
+  .verdict.ok{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#9decc4}
+  .verdict.bad{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#f6a6a6}
+
+  .series{margin-top:34px;border-top:1px solid var(--hair);padding-top:28px}
+  .series .lab{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink3);margin-bottom:14px}
+  .series .g{display:grid;gap:12px;grid-template-columns:1fr}@media(min-width:680px){.series .g{grid-template-columns:1fr 1fr}}
+  .sib{display:block;border:1px solid var(--hair);border-radius:14px;padding:14px 16px;background:var(--card);transition:transform .15s,border-color .15s}
+  .sib:hover{text-decoration:none;transform:translateY(-2px);border-color:var(--ok)}
+  .sib .st{font-weight:700;color:var(--ink)}.sib .sd{font-size:13px;color:var(--ink2);margin-top:4px}
+  .sib.this{border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.06)}
+  footer.f{margin-top:40px;padding-top:22px;border-top:1px solid var(--hair);color:var(--ink3);font-size:13px}
+  .disc{font-size:12px;color:var(--ink3);margin-top:10px;font-style:italic}
+</style>
+</head>
+<body x-data="lab()" x-cloak>
+<div class="amb"><i></i><i></i></div>
+
+<div class="shell">
+  <!-- HERO -->
+  <header class="hero">
+    <span class="kicker">🎛️ Lever Lab · interactive companion</span>
+    <h1>The grow room is <span class="grad">one system</span></h1>
+    <p class="lead">Pull a lever — watch the cascade. The <a href="https://jaketherabbit.github.io/cannabis-grow-room-levers/" target="_blank" rel="noopener">Grow-Room Levers</a> field guide says failures are almost never one number out of range; they're a <strong>mismatch between levers</strong>. This lab turns its matrices into something you can poke: stage envelopes, the four balances, root-cause diagnostics, and dew-point / EC-stacking forecasts — the inference layer of the <a href="./">Plant-State dashboard</a>, made playable.</p>
+    <div class="cta">
+      <a class="btn primary" href="#sim">▶ Try the Lever Simulator</a>
+      <a class="btn ghost" href="demo.html" target="_blank" rel="noopener">Open the live dashboard</a>
+      <a class="btn ghost" href="./">Read the white paper</a>
+    </div>
+  </header>
+
+  <!-- 1 · STAGE ENVELOPES -->
+  <section id="env">
+    <div class="sec-h"><span class="ix">1</span><h2>Stage-aware envelopes</h2><span class="sub">Athena targets · §02</span></div>
+    <div class="panel glass">
+      <p style="margin:0 0 14px;color:var(--ink2);font-size:14.5px">A reading is only "good" relative to the stage. VPD 1.4&nbsp;kPa is on-target at finish and punishing in veg. Pick a stage — the envelope the dashboard judges against swaps with it.</p>
+      <div class="seg" role="tablist">
+        <template x-for="s in stageOrder" :key="s"><button :class="stage===s&&'on'" @click="stage=s" x-text="STAGE_TARGETS[s].label"></button></template>
+      </div>
+      <table class="env">
+        <thead><tr><th>Stage</th><th>Temp °C</th><th>RH %</th><th>VPD kPa</th><th>PPFD</th><th>Feed EC</th><th>CO₂ ppm</th><th>Light</th></tr></thead>
+        <tbody>
+          <template x-for="s in stageOrder" :key="'r'+s">
+            <tr :class="stage===s&&'active'">
+              <td x-text="STAGE_TARGETS[s].label"></td>
+              <td x-text="STAGE_TARGETS[s].temp"></td><td x-text="STAGE_TARGETS[s].rh"></td>
+              <td x-text="STAGE_TARGETS[s].vpd"></td><td x-text="STAGE_TARGETS[s].ppfd"></td>
+              <td x-text="STAGE_TARGETS[s].ec"></td><td x-text="STAGE_TARGETS[s].co2"></td><td x-text="STAGE_TARGETS[s].light"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <p class="disc">CO₂ enrichment appears only from flower stretch onward — earlier stages run ambient. Clone RH is the room target; under the dome runs 80–95%.</p>
+    </div>
+  </section>
+
+  <!-- 2 · LEVER SIMULATOR -->
+  <section id="sim">
+    <div class="sec-h"><span class="ix">2</span><h2>Lever Simulator</h2><span class="sub">interaction matrix · §06</span></div>
+    <div class="panel glass">
+      <div class="grid2 lever">
+        <div>
+          <label style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)">Pull a lever</label>
+          <select x-model="leverId" style="margin-top:7px">
+            <template x-for="l in LEVERS" :key="l.id"><option :value="l.id" x-text="l.name"></option></template>
+          </select>
+          <div class="dir">
+            <button :class="dir==='up'&&'on'" @click="dir='up'">▲ Raise</button>
+            <button :class="dir==='down'&&'on'" @click="dir='down'">▼ Lower</button>
+          </div>
+          <div class="lever-note"><span x-text="lever().note"></span></div>
+          <div class="strain">
+            <span class="chip"><b>Strains:</b></span>
+            <template x-for="c in lever().strains" :key="c"><span class="chip warn" x-text="c"></span></template>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:10px">Predicted cascade <span x-text="dir==='up'?'(raising)':'(lowering)'"></span></div>
+          <div class="cascade">
+            <template x-for="(st,i) in cascade()" :key="leverId+dir+i">
+              <div class="cstep" :class="st.risk?'risk':(st.dir>0?'up':'down')">
+                <span class="ar" x-text="st.dir>0?'▲':'▼'"></span>
+                <span class="lab" x-text="st.label"></span>
+                <span class="nt" x-text="st.note"></span>
+              </div>
+            </template>
+          </div>
+          <div class="lever-note" style="border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.06);color:#f6b3b3"><b>Watch:</b> <span x-text="lever().risk"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · FOUR BALANCES -->
+  <section id="bal">
+    <div class="sec-h"><span class="ix">3</span><h2>The four balances</h2><span class="sub">in − out · §04</span></div>
+    <div class="panel glass">
+      <p style="margin:0 0 8px;color:var(--ink2);font-size:14.5px">Every room runs four ledgers at once. When a ledger goes net-positive it's <em>accumulating</em> — and that shows up here <strong>hours before</strong> the raw sensor moves. Slide the canopy transpiration load and watch the moisture ledger tip toward Botrytis risk.</p>
+      <div class="rng"><span>Transpiration load</span><input type="range" min="0" max="100" x-model.number="transp"><span x-text="transp+'%'"></span></div>
+      <div class="bals" style="margin-top:14px">
+        <template x-for="b in balances()" :key="b.name">
+          <div class="bal" :style="'background:var(--card2);border:1px solid '+(b.sev==='pos'?'rgba(251,191,36,.3)':b.sev==='neg'?'rgba(56,189,248,.3)':'var(--hair)')">
+            <div class="bh"><span class="em" x-text="b.icon"></span><h3 x-text="b.name"></h3>
+              <span class="net" :class="b.sev" x-text="b.netLabel"></span></div>
+            <div class="netbar"><div class="mid"></div>
+              <div class="fill" :style="b.barStyle"></div></div>
+            <div class="io">
+              <div class="col inc"><div class="t">In ↑</div><ul><template x-for="x in b.in" :key="x"><li x-text="x"></li></template></ul></div>
+              <div class="col outc"><div class="t">Out ↓</div><ul><template x-for="x in b.out" :key="x"><li x-text="x"></li></template></ul></div>
+            </div>
+            <div class="cl" :class="b.alert&&'alert'" x-text="b.callout"></div>
+          </div>
+        </template>
+      </div>
+      <p class="disc">Illustrative model. Live builds compute these from the transpiration proxy, irrigation timing, RH-recovery slope, dehumidifier runtime and CO₂-decay.</p>
+    </div>
+  </section>
+
+  <!-- 4 · ROOT-CAUSE DIAGNOSTICS -->
+  <section id="diag">
+    <div class="sec-h"><span class="ix">4</span><h2>Root-cause diagnostics</h2><span class="sub">symptom → cause → check · §13</span></div>
+    <div class="panel glass diag">
+      <p style="margin:0 0 12px;color:var(--ink2);font-size:14.5px">A gauge dashboard tells you <em>RH is high</em>. This tells you <strong>why</strong> — trace the symptom back through the causal chain to the misaligned lever. Pick what you're seeing:</p>
+      <div class="diaglist">
+        <template x-for="t in TROUBLESHOOT" :key="t.obs"><button :class="symptom===t.obs&&'on'" @click="symptom=t.obs" x-text="t.obs"></button></template>
+      </div>
+      <div class="row">
+        <div class="bx cause"><div class="t">⚠ Likely upstream causes</div><ul><template x-for="c in sym().causes" :key="c"><li x-text="c"></li></template></ul></div>
+        <div class="bx check"><div class="t">✓ First checks</div><ul><template x-for="c in sym().checks" :key="c"><li x-text="c"></li></template></ul></div>
+      </div>
+      <div style="margin-top:16px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)">The forward chain it lives on</div>
+      <div class="chain">
+        <template x-for="(n,i) in CHAINS.forward" :key="'f'+i"><span style="display:contents"><span class="n" x-text="n"></span><span x-show="i<CHAINS.forward.length-1" class="ar">→</span></span></template>
+      </div>
+    </div>
+
+    <div class="sec-h" style="margin-top:26px"><span class="ix">4b</span><h2>Failure-mode library</h2><span class="sub">the six classic mismatches · §11</span></div>
+    <div class="fm">
+      <template x-for="f in FAILMODES" :key="f.id">
+        <div class="fmcard"><div class="id" x-text="f.id"></div><h4 x-text="f.title"></h4><p x-text="f.symptoms"></p><div class="cz"><b>Root cause:</b> <span x-text="f.cause"></span></div></div>
+      </template>
+    </div>
+  </section>
+
+  <!-- 5 · DERIVED FORECASTS -->
+  <section id="fcast">
+    <div class="sec-h"><span class="ix">5</span><h2>Derived early-warnings</h2><span class="sub">pure math · zero new hardware</span></div>
+    <div class="wid">
+      <!-- dew point -->
+      <div class="panel glass">
+        <h3 style="margin:0 0 4px;font-size:1.05rem">Dew-point &amp; condensation margin</h3>
+        <p style="margin:0 0 10px;color:var(--ink3);font-size:12.5px">Condensation = microbial + GMP-compliance risk. Warn before any surface drops below dew point.</p>
+        <div class="big" :style="condMargin()<2?'color:#f87171':'color:#34d399'"><span x-text="dewPoint().toFixed(1)"></span><small> °C dew point</small></div>
+        <div class="rng"><span style="min-width:92px">Air temp <b x-text="airT+'°'"></b></span><input type="range" min="16" max="30" step="0.5" x-model.number="airT"></div>
+        <div class="rng"><span style="min-width:92px">RH <b x-text="rh+'%'"></b></span><input type="range" min="40" max="85" x-model.number="rh"></div>
+        <div class="rng"><span style="min-width:92px">Coldest surf <b x-text="surfT+'°'"></b></span><input type="range" min="12" max="26" step="0.5" x-model.number="surfT"></div>
+        <div class="verdict" :class="condMargin()<2?'bad':'ok'">
+          <span x-show="condMargin()>=2">Margin <b x-text="condMargin().toFixed(1)+' °C'"></b> — coldest surface is safely above dew point.</span>
+          <span x-show="condMargin()<2">⚠ Margin only <b x-text="condMargin().toFixed(1)+' °C'"></b>. Surfaces near dew point — raise night temp, cut RH, or improve airflow before condensation forms.</span>
+        </div>
+      </div>
+      <!-- EC forecast -->
+      <div class="panel glass">
+        <h3 style="margin:0 0 4px;font-size:1.05rem">EC-stacking forecast</h3>
+        <p style="margin:0 0 10px;color:var(--ink3);font-size:12.5px">Dryback concentrates pore salts. Project it forward — catch tip burn days upstream.</p>
+        <div class="big"><span x-text="ec0.toFixed(1)"></span><small> mS/cm now → </small><span :style="ecHoursToBurn()<6?'color:#f87171':'color:#34d399'" x-text="ecAt(6).toFixed(1)"></span><small> in 6h</small></div>
+        <div class="ecbars">
+          <template x-for="h in [0,1,2,3,4,5,6]" :key="'e'+h">
+            <div class="b" :class="ecAt(h)>=ecBurn&&'hot'" :style="'height:'+Math.min(100,(ecAt(h)/ecBurn)*82)+'%'">
+              <span class="v" x-text="ecAt(h).toFixed(1)"></span><span class="h" x-text="h+'h'"></span>
+            </div>
+          </template>
+        </div>
+        <div class="rng" style="margin-top:24px"><span style="min-width:92px">Dryback rate <b x-text="dbRate.toFixed(1)+'%/h'"></b></span><input type="range" min="0.5" max="6" step="0.1" x-model.number="dbRate"></div>
+        <div class="rng"><span style="min-width:92px">Feed EC <b x-text="feedEC.toFixed(1)"></b></span><input type="range" min="1.5" max="4" step="0.1" x-model.number="feedEC"></div>
+        <div class="verdict" :class="ecHoursToBurn()<6?'bad':'ok'">
+          <span x-show="ecHoursToBurn()>=6">Pore EC stays under the <b x-text="ecBurn"></b> burn line for 6h+. Steering on track.</span>
+          <span x-show="ecHoursToBurn()<6">⚠ Pore EC hits the <b x-text="ecBurn"></b> burn line in <b x-text="ecHoursToBurn().toFixed(1)+'h'"></b>. Reduce dryback ~3% or add a maintenance shot.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERIES -->
+  <div class="series">
+    <p class="lab">The field-guide series</p>
+    <div class="g">
+      <a class="sib this" href="./"><div class="st">🌿 Plant-State Dashboards</div><div class="sd">From telemetry to intelligence — the calm dashboard. <span style="color:var(--ok)">(Lever Lab is part of this)</span></div></a>
+      <a class="sib" href="https://jaketherabbit.github.io/cannabis-grow-room-levers/" target="_blank" rel="noopener"><div class="st">🎛️ Grow-Room Levers</div><div class="sd">The systems field guide this lab is built from.</div></a>
+      <a class="sib" href="https://jaketherabbit.github.io/hash-rosin-pressing-levers/" target="_blank" rel="noopener"><div class="st">🫧 Hash Rosin Pressing Levers</div><div class="sd">Farm to dab — lever &amp; interaction matrices.</div></a>
+      <a class="sib" href="https://jaketherabbit.github.io/grow-room-training/" target="_blank" rel="noopener"><div class="st">📘 Grow-Room Training</div><div class="sd">Mobile-first manual + LLM agent playbook.</div></a>
+    </div>
+  </div>
+  <footer class="f">
+    <p>© 2026 Legacy Ag · JakeTheRabbit · Lever Lab v1.0 · interaction directions and stage targets adapted from the <a href="https://jaketherabbit.github.io/cannabis-grow-room-levers/" target="_blank" rel="noopener">Grow-Room Levers</a> guide (Athena® Handbook targets).</p>
+    <p class="disc">Illustrative simulator for design and teaching. Directions show the typical sign of effect during lights-on, not fixed setpoints; the exact response depends on cultivar, substrate, room design and HVAC type.</p>
+  </footer>
+</div>
+
+<script>
+/* ===== static data (extracted from the Grow-Room Levers guide) — NOT reactive ===== */
+const STAGE_TARGETS = {
+  clone:  {label:"Clone",   temp:"23–26", rh:"65–75", vpd:"0.8",     ppfd:"100–150", ec:"2.0–3.0", co2:"ambient",  light:"24/0"},
+  veg:    {label:"Veg",     temp:"22–28", rh:"58–75", vpd:"0.8–1.0", ppfd:"300–600", ec:"3.0",     co2:"ambient",  light:"18/6"},
+  stretch:{label:"Stretch", temp:"25–28", rh:"60–72", vpd:"1.0–1.2", ppfd:"600–1000",ec:"3.0",     co2:"1200–1500",light:"12/12"},
+  bulk:   {label:"Bulk",    temp:"24–26", rh:"60–70", vpd:"1.0–1.2", ppfd:"850–1200",ec:"3.0",     co2:"1200–1500",light:"12/12"},
+  finish: {label:"Finish",  temp:"18–24", rh:"50–60", vpd:"1.2–1.4", ppfd:"600–900", ec:"2.0–3.0", co2:"500–800",  light:"12/12"},
+};
+const STAGE_ORDER = ["clone","veg","stretch","bulk","finish"];
+
+/* Lever simulator — effects listed for RAISING the lever; lowering inverts the signs. */
+const LEVERS = [
+  {id:"ppfd", name:"PPFD / light intensity",
+    note:"The biggest lever. Raising it only pays if CO₂, cooling, dehum, irrigation and EC strategy all move with it.",
+    risk:"Edge burn and stalled CO₂ uptake if VPD or pore-EC are left unmanaged.",
+    strains:["Cooling","Dehumidifier","CO₂","Irrigation"],
+    fx:[["Leaf temperature",1,"radiant + electrical heat"],["Transpiration",1,"higher water demand"],["Substrate dryback",1,"faster drawdown"],["Pore EC",1,"salts concentrate"],["Dehum / AC load",1,"more latent + sensible heat"],["CO₂ demand",1,"if stomata open"]]},
+  {id:"cool", name:"Cooling setpoint (lower)",
+    note:"Lowering cooling drops air temp but can create high RH / low VPD — sensible cooling without latent removal.",
+    risk:"Overnight condensation if surfaces fall below dew point.",
+    strains:["Dehumidifier"],
+    fx:[["Air temperature",-1,"cooler room"],["Relative humidity",1,"if moisture unchanged"],["VPD",-1,"as RH rises"],["Transpiration",-1,"slower drinking"],["Substrate dryback",-1,"slower"]]},
+  {id:"dehum", name:"Dehumidifier output",
+    note:"Dehumidifiers convert latent moisture into sensible heat dumped back into the room.",
+    risk:"Over-drying the canopy and spiking the AC load.",
+    strains:["Cooling"],
+    fx:[["Relative humidity",-1,"drier air"],["VPD",1,"steeper gradient"],["Transpiration",1,"plant drinks more"],["Room heat load",1,"latent → sensible"],["Pore EC",1,"via deeper dryback"]]},
+  {id:"fan", name:"Circulation fan speed",
+    note:"More airflow thins the leaf boundary layer and lifts uniformity — to a point.",
+    risk:"Wind stress, localized dryback and edge burn if aimed too hard at the canopy.",
+    strains:[],
+    fx:[["Leaf temperature",-1,"better convective cooling"],["VPD at leaf",1,"thinner boundary layer"],["Transpiration",1,"effective drying"],["Uniformity",1,"fewer microclimates"],["Substrate dryback",1,"localized"]]},
+  {id:"shot", name:"Irrigation shot size",
+    note:"Bigger shots flatten the dryback curve and weaken steering control.",
+    risk:"Hypoxia / wet feet and loss of generative steering if the substrate stays saturated.",
+    strains:["Dehumidifier"],
+    fx:[["Substrate water",1,"refill"],["Pore EC",-1,"dilution if runoff"],["Substrate dryback",-1,"shallower"],["Root oxygen",-1,"if saturated"],["Room RH",1,"transpiration tail later"]]},
+  {id:"dryback", name:"Dryback target (longer)",
+    note:"The core steering lever — deeper dryback concentrates pore EC and pushes the plant generative.",
+    risk:"Osmotic / water stress and stalled photosynthesis if pushed too far.",
+    strains:["Irrigation"],
+    fx:[["Substrate water",-1,"deeper drawdown"],["Pore EC",1,"salts concentrate"],["Osmotic / generative pressure",1,"flowering push"],["Air-filled porosity",1,"more root oxygen"],["Disease risk",-1,"drier root zone"]]},
+  {id:"feedec", name:"Feed EC",
+    note:"Higher feed EC raises osmotic pressure; useful for steering but unforgiving.",
+    risk:"Nutrient burn, lockout and reduced water uptake if too high for the VPD/dryback.",
+    strains:["Irrigation"],
+    fx:[["Substrate EC",1,"direct"],["Osmotic load",1,"tighter water uptake"],["Water uptake",-1,"if excessive"]]},
+  {id:"co2", name:"CO₂ setpoint",
+    note:"CO₂ only pays when PPFD, temp, water and nutrients are not limiting — and the room is tight.",
+    risk:"Poor ROI and worker-safety exposure without matching light and interlocks.",
+    strains:["CO₂ supply","Room tightness"],
+    fx:[["Photosynthesis",1,"if light matches"],["Water-use efficiency",1,"more carbon per drop"],["Stomatal conductance",-1,"per unit carbon"],["PPFD requirement",1,"needs more light"]]},
+  {id:"exhaust", name:"Exhaust / air exchange",
+    note:"Exhaust removes heat, humidity and odour — but also CO₂ and conditioned air.",
+    risk:"Fights CO₂ dosing and pulls in unfiltered outside air / pests.",
+    strains:["CO₂","Filtration"],
+    fx:[["Room CO₂",-1,"vented out"],["Humidity",-1,"depends on outside"],["Heat",-1,"if outside cooler"],["Enrichment cost",1,"dosing fights exhaust"]]},
+  {id:"density", name:"Plant density",
+    note:"Density raises total transpiration but disease risk climbs non-linearly.",
+    risk:"Humidity pockets and Botrytis/PM under the canopy as airflow and light penetration fall.",
+    strains:["Airflow","Dehumidifier"],
+    fx:[["Humidity pockets",1,"stagnant under-canopy air"],["Airflow resistance",1,"denser canopy"],["Light penetration",-1,"shading"],["Total transpiration",1,"more leaf area"],["Disease risk",1,"non-linear"]]},
+];
+
+const TROUBLESHOOT = [
+  {obs:"Dryback too fast", causes:["PPFD too high","VPD too high","Airflow too aggressive","Substrate too small","Irrigation too infrequent"], checks:["Leaf temp","VPD","Substrate WC","Runoff EC"]},
+  {obs:"Dryback too slow", causes:["VPD too low","RH too high","Low PPFD","Over-irrigation","Substrate too large","Weak roots"], checks:["Dew point","Night RH","Root health","Irrigation timing"]},
+  {obs:"RH spikes after lights-off", causes:["Late irrigation","Falling air temp","Transpiration tail","Inadequate night dehum"], checks:["Dew point","Last-shot timing","Dehum runtime"]},
+  {obs:"Condensation", causes:["Surface below dew point","Poor airflow","Low night temp","High RH"], checks:["Dew point vs coldest surface temp"]},
+  {obs:"Edge burn", causes:["High VPD","High substrate EC","Rapid dryback","Excess airflow","Nutrient imbalance"], checks:["Leaf temp","VPD","Runoff EC","Fan direction"]},
+  {obs:"Botrytis pockets", causes:["Dense canopy","Low airflow","High local RH","Condensation","Dead leaves"], checks:["Under-canopy RH","Airflow smoke test","Defoliation"]},
+  {obs:"CO₂ ppm falling fast", causes:["High photosynthesis","Exhaust / leakage","Poor dosing capacity","Poor distribution"], checks:["Exhaust state","Room pressure","CO₂ decay curve"]},
+  {obs:"Substrate EC climbing", causes:["Excess dryback","Low runoff","Feed EC too high","High transpiration"], checks:["Runoff EC","Dryback %","Irrigation volume"]},
+  {obs:"Dehum cannot hold RH", causes:["Undersized dehum","Excess transpiration","Over-irrigation","Air leaks"], checks:["Condensate rate","Irrigation volume","Room seal"]},
+  {obs:"Soft growth / weak stems", causes:["Low light","Low VPD","Excess nitrogen","Poor airflow","Over-wet root zone"], checks:["PPFD","VPD","Feed ratio","Fan pattern"]},
+  {obs:"Uneven canopy", causes:["PPFD variation","Airflow variation","Irrigation non-uniformity","CO₂ stratification"], checks:["PPFD map","Emitter test","Thermal / RH map"]},
+  {obs:"AC short cycling", causes:["Oversized unit","Poor deadband","Bad sensor placement","Dehum conflict"], checks:["Runtime logs","Sensor location","Control sequence"]},
+];
+
+const FAILMODES = [
+  {id:"F-01", title:"More light without more capacity", symptoms:"Canopy hot spots, deeper dryback, runoff EC climbing, edge burn, stalled CO₂ uptake, continuous dehum/AC.", cause:"PPFD increased faster than HVAC, dehum, CO₂, irrigation and EC strategy."},
+  {id:"F-02", title:"Humidity hidden inside the canopy", symptoms:"Room sensor acceptable while dense flower zones stay humid; Botrytis / PM appears anyway.", cause:"Poor under-canopy airflow + high density + late irrigation + cold surfaces below dew point."},
+  {id:"F-03", title:"CO₂ enrichment fighting exhaust", symptoms:"Unstable CO₂ ppm, high CO₂ usage, poor enrichment response.", cause:"Exhaust, leakage or negative pressure removing CO₂ faster than the system maintains it."},
+  {id:"F-04", title:"Cooling solves temp, creates humidity", symptoms:"Air temp good, RH rises, VPD falls, overnight condensation, plants soft / slow to transpire.", cause:"Sensible cooling dropped air temp without enough latent moisture removal."},
+  {id:"F-05", title:"Dehum solves RH, overheats the room", symptoms:"RH / VPD improve, room temp creeps up, AC load and energy spike.", cause:"Standalone / recirculating dehumidifiers convert latent moisture into sensible heat in-room."},
+  {id:"F-06", title:"Irrigation masks or amplifies climate", symptoms:"Dryback too fast→EC burn, or too slow→wet & low-oxygen; late shots spike night RH.", cause:"Root-zone strategy compensating for a climate mismatch instead of fixing it."},
+];
+
+const CHAINS = {
+  forward:["Light","Leaf temp","VPD","Transpiration","Dryback","Substrate EC","Water/nutrient stress","Photosynthesis","CO₂ uptake","HVAC / dehum load","Disease risk"],
+  reverse:["Humidity / dehum","VPD","Transpiration","Dryback","EC","Stomata","CO₂ uptake","Growth"],
+};
+
+/* ===== Alpine component ===== */
+function lab(){
+  return {
+    STAGE_TARGETS, stageOrder:STAGE_ORDER, LEVERS, TROUBLESHOOT, FAILMODES, CHAINS,
+    stage:"bulk", leverId:"ppfd", dir:"up", symptom:"RH spikes after lights-off",
+    transp:55,
+    airT:24, rh:62, surfT:20,
+    ec0:4.4, dbRate:3.0, feedEC:3.0, ecBurn:7.0,
+
+    lever(){ return this.LEVERS.find(l=>l.id===this.leverId)||this.LEVERS[0]; },
+    cascade(){ const s=this.dir==="up"?1:-1; return this.lever().fx.map(f=>({label:f[0],dir:f[1]*s,note:f[2],risk:/EC|stress|burn|oxygen|disease|hypox/i.test(f[0])&&(f[1]*s)>0})); },
+    sym(){ return this.TROUBLESHOOT.find(t=>t.obs===this.symptom)||this.TROUBLESHOOT[0]; },
+
+    balances(){
+      const t=this.transp/100;
+      // illustrative net = accumulation tendency (-1 deficit/removing .. +1 surplus/accumulating)
+      const moisture = (t*1.15) - 0.6;                 // transpiration in vs fixed dehum/exhaust out
+      const salt     = (t*0.9 + (this.dbRate-2)/6) - 0.55; // dryback concentration vs uptake/runoff
+      const energy   = (t*0.7 + 0.35) - 0.6;           // lights/dehum heat in vs AC out
+      const carbon   = 0.15 - t*0.8;                   // dosing in vs uptake out (net usually deficit under light)
+      const mk=(name,icon,val,inA,outA,posCall,negCall,balCall)=>{
+        const sev = val>0.12?"pos":val<-0.12?"neg":"bal";
+        const pct = Math.max(-1,Math.min(1,val))*50;
+        const barStyle = pct>=0
+          ? `left:50%;width:${pct}%;background:linear-gradient(90deg,#fbbf24aa,#fbbf24)`
+          : `left:${50+pct}%;width:${-pct}%;background:linear-gradient(90deg,#38bdf8,#38bdf8aa)`;
+        return {name,icon,in:inA,out:outA,sev,
+          netLabel: sev==="pos"?"accumulating":sev==="neg"?"removing":"balanced",
+          barStyle, callout: sev==="pos"?posCall:sev==="neg"?negCall:balCall,
+          alert: name==="Moisture"&&sev==="pos"};
+      };
+      return [
+        mk("Moisture","💧",moisture,
+          ["Transpiration","Irrigation evap","Humidifier"],["Dehumidifier","AC condensate","Exhaust"],
+          "Moisture accumulating — night-RH spike & Botrytis risk building. Pull last-shot earlier or add night dehum.",
+          "Drying faster than the plant adds — watch for over-dry / low-VPD stall reversal.",
+          "Moisture ledger balanced — dehum matched to transpiration."),
+        mk("Salt / root-zone","🧂",salt,
+          ["Feed EC","Dryback concentration","Evaporation"],["Plant uptake","Runoff / leach","Dilution"],
+          "Pore EC stacking — see the forecast below; ease dryback or add a maintenance shot.",
+          "Salts leaching out — EC may fall below target; check runoff and feed EC.",
+          "Salt ledger balanced — EC holding near target."),
+        mk("Energy","⚡",energy,
+          ["Lights","Dehumidifier heat","Pumps / fans"],["AC cooling","Exhaust","Building loss"],
+          "Heat accumulating — AC near its limit; do not add light without cooling headroom.",
+          "Cooling ahead of load — headroom to push light if other levers allow.",
+          "Energy ledger balanced."),
+        mk("Carbon","🫁",carbon,
+          ["CO₂ dosing","Outside air"],["Plant uptake","Exhaust / leak"],
+          "CO₂ building — likely over-dosing for the available light; trim dosing.",
+          "CO₂ drawn down by photosynthesis — enrichment paying off if light matches.",
+          "Carbon ledger balanced."),
+      ];
+    },
+
+    /* dew point — Magnus formula */
+    dewPoint(){ const a=17.625,b=243.04,T=this.airT,R=Math.max(1,this.rh); const g=Math.log(R/100)+(a*T)/(b+T); return (b*g)/(a-g); },
+    condMargin(){ return this.surfT - this.dewPoint(); },
+
+    /* EC stacking — concentration model: as VWC draws down, pore EC concentrates */
+    ecAt(h){ const vwc0=60, vwc=Math.max(18, vwc0 - this.dbRate*h); const conc=this.ec0*(vwc0/vwc); const feed=(this.feedEC-3.0)*0.25*h; return Math.min(12, conc+feed); },
+    ecHoursToBurn(){ for(let h=0;h<=6;h+=0.25){ if(this.ecAt(h)>=this.ecBurn) return h; } return 99; },
+  };
+}
+window.lab = lab;
+</script>
+<script defer src="https://unpkg.com/alpinejs@3/dist/cdn.min.js"></script>
+</body>
+</html>
