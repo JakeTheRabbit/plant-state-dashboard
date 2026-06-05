@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0c10">
+<meta name="description" content="From Telemetry to Intelligence — a Plant-State Dashboard philosophy for the modern grow room. Stop showing sensors; reason about the plant. A Legacy Ag / JakeTheRabbit field guide.">
+<meta property="og:title" content="From Telemetry to Intelligence — Plant-State Dashboards">
+<meta property="og:description" content="The grow-room dashboard, reimagined: infer the plant, prescribe the next step, stay quiet until something needs you.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="assets/facility-overview.png">
+<title>From Telemetry to Intelligence · Plant-State Dashboards</title>
+<style>
+  :root{
+    --bg:#0a0c10; --bg2:#0f1318; --card:#141a21; --card2:#19212a; --hair:rgba(255,255,255,.08);
+    --ink:#e7ecf2; --ink2:#aab4c0; --ink3:#727d8a;
+    --ok:#34d399; --okdim:#10b981; --warn:#fbbf24; --crit:#f87171; --accent:#34d399;
+    --measure:68ch; --maxw:1180px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:17px;line-height:1.72;letter-spacing:.005em;-webkit-font-smoothing:antialiased;}
+  ::selection{background:rgba(52,211,153,.25)}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  img{max-width:100%;display:block}
+
+  .amb{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .amb i{position:absolute;border-radius:50%;filter:blur(120px);opacity:.16}
+  .amb i:nth-child(1){top:-12rem;left:-8rem;width:40rem;height:40rem;background:#10b981}
+  .amb i:nth-child(2){top:36%;right:-14rem;width:34rem;height:34rem;background:#22d3ee;opacity:.08}
+
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:60;background:linear-gradient(90deg,#34d399,#22d3ee);transition:width .1s linear}
+
+  .shell{max-width:var(--maxw);margin:0 auto;padding:0 clamp(20px,4vw,40px)}
+
+  /* ---------- HERO ---------- */
+  .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--hair)}
+  .hero .inner{max-width:var(--maxw);margin:0 auto;padding:clamp(40px,7vw,84px) clamp(20px,4vw,40px) clamp(32px,4vw,56px);
+    display:grid;gap:40px;grid-template-columns:1fr;align-items:center}
+  @media(min-width:980px){.hero .inner{grid-template-columns:1fr 1.05fr}}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ok);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);padding:6px 12px;border-radius:999px}
+  .hero h1{font-size:clamp(2.1rem,1.4rem + 3.4vw,3.6rem);line-height:1.05;letter-spacing:-.025em;margin:22px 0 14px;font-weight:800}
+  .hero h1 .grad{background:linear-gradient(135deg,#6ee7b7,#34d399 50%,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .tag{font-size:1.2rem;color:var(--ink2);max-width:48ch;line-height:1.5}
+  .hero .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+  .btn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 20px;border-radius:13px;font-weight:600;font-size:15px;border:1px solid var(--hair);transition:transform .15s,border-color .15s,background .15s}
+  .btn:hover{text-decoration:none;transform:translateY(-2px)}
+  .btn.primary{background:linear-gradient(135deg,#34d399,#10b981);color:#06281c;border-color:transparent}
+  .btn.ghost{background:var(--card);color:var(--ink)}
+  .btn.ghost:hover{border-color:var(--ink3)}
+  .hero .shotwrap{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--hair);box-shadow:0 30px 80px -30px rgba(0,0,0,.8),0 0 0 1px rgba(52,211,153,.06)}
+  .hero .shotwrap img{width:100%}
+  .hero .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .hero .badges span{font-size:12px;color:var(--ink2);background:var(--card);border:1px solid var(--hair);border-radius:999px;padding:5px 11px}
+
+  .layout{display:grid;grid-template-columns:1fr;gap:48px;padding-top:40px}
+  @media(min-width:1024px){.layout{grid-template-columns:240px minmax(0,1fr);align-items:start}}
+  nav.toc{display:none}
+  @media(min-width:1024px){nav.toc{display:block;position:sticky;top:0;max-height:100vh;overflow-y:auto;padding:40px 0}
+    nav.toc::-webkit-scrollbar{width:6px} nav.toc::-webkit-scrollbar-thumb{background:#222a33;border-radius:6px}}
+  nav.toc .lab{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink3);margin:0 0 14px}
+  nav.toc ol{list-style:none;margin:0;padding:0}
+  nav.toc li{margin:1px 0}
+  nav.toc a{display:flex;gap:10px;align-items:baseline;padding:6px 12px;border-radius:8px;color:var(--ink2);font-size:13.5px;line-height:1.4;border-left:2px solid transparent}
+  nav.toc a:hover{background:var(--card);text-decoration:none;color:var(--ink)}
+  nav.toc a.active{color:var(--ok);border-left-color:var(--ok);background:rgba(52,211,153,.07)}
+  nav.toc a .n{color:var(--ink3);font-variant-numeric:tabular-nums;min-width:1.4em}
+  nav.toc a.active .n{color:var(--ok)}
+
+  main{padding:0 0 100px;min-width:0}
+  article{max-width:var(--measure)}
+  article.wide{max-width:none}
+
+  .abstract{padding:24px 26px;border-radius:18px;background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--hair);box-shadow:0 10px 40px -20px rgba(0,0,0,.6);margin-bottom:8px}
+  .abstract .t{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink3);margin-bottom:8px}
+  .abstract p{margin:0 0 12px} .abstract p:last-child{margin:0}
+
+  h2{font-size:1.7rem;letter-spacing:-.02em;line-height:1.2;margin:64px 0 6px;font-weight:750;scroll-margin-top:24px;display:flex;gap:14px;align-items:baseline}
+  h2 .hn{font-size:1rem;font-weight:700;color:var(--ok);font-variant-numeric:tabular-nums;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);width:2em;height:2em;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;flex:none;position:relative;top:-.15em}
+  h2 + .rule{height:1px;background:var(--hair);margin:14px 0 22px}
+  h3{font-size:1.12rem;margin:32px 0 8px;font-weight:700}
+  p{margin:0 0 18px} strong{font-weight:700;color:#f2f5f8} em{font-style:italic;color:var(--ink)}
+
+  ol.body,ul.body{margin:0 0 18px;padding-left:0;list-style:none;counter-reset:li}
+  ol.body li,ul.body li{position:relative;padding-left:40px;margin:0 0 16px}
+  ol.body li{counter-increment:li}
+  ol.body li::before{content:counter(li);position:absolute;left:0;top:1px;width:26px;height:26px;border-radius:8px;background:var(--card2);border:1px solid var(--hair);color:var(--ok);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  ul.body li::before{content:"";position:absolute;left:8px;top:11px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+
+  .lede{font-size:1.06rem}
+  .callout{border-left:3px solid var(--ok);background:var(--card);border-radius:0 14px 14px 0;padding:16px 20px;margin:0 0 22px;color:var(--ink2)}
+  .punch{font-size:1.15rem;font-weight:600;color:var(--ink);border:1px solid var(--hair);background:linear-gradient(180deg,var(--card),var(--bg2));border-radius:16px;padding:20px 24px;margin:26px 0}
+
+  .tbl{width:100%;border-collapse:separate;border-spacing:0;margin:8px 0 24px;font-size:14.5px;border:1px solid var(--hair);border-radius:14px;overflow:hidden}
+  .tbl th{background:var(--card2);text-align:left;padding:12px 16px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);font-weight:600}
+  .tbl td{padding:13px 16px;border-top:1px solid var(--hair);vertical-align:top;color:var(--ink2)}
+  .tbl tr td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
+  .tbl .from{color:var(--ink3)} .tbl .to{color:var(--ok)}
+  @media(max-width:560px){.tbl,.tbl tbody,.tbl tr,.tbl td,.tbl th{display:block}.tbl th{display:none}.tbl td{border-top:none;padding:4px 16px}.tbl tr{border-top:1px solid var(--hair);padding:10px 0}.tbl tr:first-child{border-top:none}}
+
+  .zone{border:1px solid var(--hair);border-radius:16px;padding:20px 22px;margin:0 0 16px;background:var(--card)}
+  .zone .zh{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .zone .num{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:800;color:var(--bg);background:var(--ok);flex:none}
+  .zone h3{margin:0;font-size:1.05rem}
+  .zone .ex{margin-top:12px;padding:14px 16px;border-radius:11px;background:var(--bg2);border:1px solid var(--hair);font-size:14.5px;color:var(--ink2)}
+  .zone.warn{border-color:rgba(251,191,36,.3)} .zone.warn .num{background:var(--warn)}
+  .zone .ex .sev{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#1a0e03;background:var(--warn);padding:2px 8px;border-radius:5px;margin-bottom:6px}
+
+  pre{background:#070a0d;border:1px solid var(--hair);border-radius:14px;padding:20px;overflow-x:auto;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;line-height:1.65;color:#9fb3c8;margin:0 0 24px}
+  pre .k{color:var(--ok);font-weight:700}
+
+  .scn{border:1px solid var(--hair);border-radius:16px;overflow:hidden;margin:0 0 18px}
+  .scn .st{padding:14px 18px;font-weight:700;background:var(--card2);border-bottom:1px solid var(--hair)}
+  .scn .row{display:grid;grid-template-columns:1fr}
+  @media(min-width:680px){.scn .row{grid-template-columns:1fr 1fr}}
+  .scn .cell{padding:16px 18px;font-size:14.5px;color:var(--ink2)}
+  .scn .old{background:rgba(248,113,113,.04);border-bottom:1px solid var(--hair)}
+  @media(min-width:680px){.scn .old{border-bottom:none;border-right:1px solid var(--hair)}}
+  .scn .new{background:rgba(52,211,153,.05)}
+  .scn .tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:5px;margin-bottom:8px}
+  .scn .old .tag{color:var(--crit);background:rgba(248,113,113,.12)}
+  .scn .new .tag{color:var(--ok);background:rgba(52,211,153,.12)}
+
+  .metric{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--hair)}
+  .metric:last-child{border-bottom:none}
+  .metric .mn{font-weight:700;color:var(--ink);min-width:170px;flex:none}
+  .metric .md{color:var(--ink2);font-size:15px}
+  .metric .md em{color:var(--ok);font-style:normal;font-weight:600}
+
+  /* gallery */
+  .gallery{display:grid;gap:20px;grid-template-columns:1fr;margin:8px 0 8px}
+  .shot{border:1px solid var(--hair);border-radius:16px;overflow:hidden;background:var(--card);box-shadow:0 18px 50px -28px rgba(0,0,0,.7)}
+  .shot a{display:block} .shot img{width:100%}
+  .shot .cap{padding:13px 18px;font-size:13.5px;color:var(--ink2);border-top:1px solid var(--hair)}
+  .shot .cap b{color:var(--ink)}
+  .gal2{display:grid;gap:20px;grid-template-columns:1fr}
+  @media(min-width:760px){.gal2{grid-template-columns:1.3fr .7fr}}
+
+  /* prompt box */
+  .promptbox{position:relative;border:1px solid var(--hair);border-radius:16px;overflow:hidden;margin:0 0 22px}
+  .promptbox .ph{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--card2);border-bottom:1px solid var(--hair);font-size:13px;color:var(--ink2)}
+  .promptbox .ph .dot{width:11px;height:11px;border-radius:50%}
+  .copybtn{margin-left:auto;font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--card);border:1px solid var(--hair);border-radius:9px;padding:7px 12px;cursor:pointer}
+  .copybtn:hover{border-color:var(--ok);color:var(--ok)}
+  .promptbox pre{margin:0;border:none;border-radius:0;max-height:460px}
+
+  /* series footer */
+  .series{margin-top:30px;border-top:1px solid var(--hair);padding-top:30px}
+  .series .lab{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink3);margin-bottom:16px}
+  .series .grid{display:grid;gap:14px;grid-template-columns:1fr}
+  @media(min-width:680px){.series .grid{grid-template-columns:1fr 1fr}}
+  .sib{display:block;border:1px solid var(--hair);border-radius:14px;padding:16px 18px;background:var(--card);transition:transform .15s,border-color .15s}
+  .sib:hover{text-decoration:none;transform:translateY(-2px);border-color:var(--ok)}
+  .sib .st{font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px}
+  .sib .sd{font-size:13.5px;color:var(--ink2);margin-top:5px}
+  .sib.this{border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.06)}
+  .sib.this .st:after{content:"you are here";font-size:10px;font-weight:600;color:var(--ok);background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);padding:2px 7px;border-radius:999px;margin-left:auto}
+
+  footer.f{margin-top:50px;padding-top:24px;border-top:1px solid var(--hair);color:var(--ink3);font-size:14px}
+  footer.f p{margin:0 0 10px}
+  .totop{position:fixed;right:20px;bottom:20px;width:46px;height:46px;border-radius:13px;display:none;place-items:center;background:var(--card);border:1px solid var(--hair);color:var(--ink2);cursor:pointer;z-index:50;backdrop-filter:blur(8px)}
+  .totop.show{display:grid} .totop:hover{color:var(--ok);border-color:var(--ok)}
+
+  @media print{
+    :root{--bg:#fff;--bg2:#fff;--card:#f6f8fa;--card2:#eef1f4;--ink:#0d1117;--ink2:#33404d;--ink3:#5a6672;--hair:#d4dae0;--ok:#0a7c52;--accent:#0a7c52}
+    body{font-size:11pt;line-height:1.5}.amb,#progress,.totop,nav.toc,.hero .cta,.copybtn{display:none!important}
+    .layout{grid-template-columns:1fr;gap:0}.shell{max-width:none;padding:0}article{max-width:none}
+    h2{margin-top:26px;page-break-after:avoid}.scn,.zone,pre,.abstract,.tbl,.shot{page-break-inside:avoid}
+    a{color:inherit;text-decoration:none}.hero h1 .grad{color:#0a7c52;-webkit-text-fill-color:#0a7c52}
+  }
+</style>
+</head>
+<body>
+<div class="amb"><i></i><i></i></div>
+<div id="progress"></div>
+
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <div class="inner">
+    <div>
+      <span class="kicker">🌿 Grow-Room Field Guides · No. 4</span>
+      <h1>From Telemetry to <span class="grad">Intelligence</span></h1>
+      <p class="tag">The grow-room dashboard, reimagined. Stop showing sensors — reason about the plant. Lead with what it means, prescribe the next step, and stay quiet until something needs you.</p>
+      <div class="cta">
+        <a class="btn primary" href="#abstract">Read the paper ↓</a>
+        <a class="btn ghost" href="demo.html" target="_blank" rel="noopener">▶ Open the live demo</a>
+        <a class="btn ghost" href="#s13">Get the build prompt</a>
+      </div>
+      <div class="badges"><span>Plant-State Intelligence</span><span>Home Assistant</span><span>crop steering</span><span>~14 min read</span></div>
+    </div>
+    <div>
+      <div class="shotwrap"><a href="demo.html" target="_blank" rel="noopener"><img src="assets/facility-overview.png" alt="Plant-State facility dashboard — calm overview leading with advisories, not sensors" loading="eager"></a></div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <div class="layout">
+    <nav class="toc" aria-label="Contents">
+      <p class="lab">Contents</p>
+      <ol>
+        <li><a href="#abstract"><span class="n">·</span> Abstract</a></li>
+        <li><a href="#s1"><span class="n">1</span> The sensor-dashboard problem</a></li>
+        <li><a href="#s2"><span class="n">2</span> Six inversions</a></li>
+        <li><a href="#s3"><span class="n">3</span> Design principles</a></li>
+        <li><a href="#s4"><span class="n">4</span> The plant-state model</a></li>
+        <li><a href="#s5"><span class="n">5</span> Architecture</a></li>
+        <li><a href="#s6"><span class="n">6</span> The dashboard surface</a></li>
+        <li><a href="#s7"><span class="n">7</span> Worked scenarios</a></li>
+        <li><a href="#s8"><span class="n">8</span> Adoption path</a></li>
+        <li><a href="#s9"><span class="n">9</span> Trust &amp; failure modes</a></li>
+        <li><a href="#s10"><span class="n">10</span> Measuring success</a></li>
+        <li><a href="#s11"><span class="n">11</span> Closing</a></li>
+        <li><a href="#s12"><span class="n">12</span> The reference dashboards</a></li>
+        <li><a href="#s13"><span class="n">13</span> Build one — the prompt</a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <article>
+        <div class="abstract" id="abstract">
+          <div class="t">Abstract</div>
+          <p>The instrumented grow room has won. We can measure air temperature, relative humidity, VPD, CO₂, PPFD, substrate water content, pore-water EC, root-zone temperature, pH, runoff, dosing volumes, and power draw — second by second, channel by channel. And yet the dashboards we built to display all of this have quietly become the bottleneck. They are gauge clusters: walls of live numbers and time-series graphs that show <em>what is happening</em> but never <em>what it means, what is about to happen, or what to do about it</em>. The human is forced to be the integrator — synthesizing fifteen graphs into a judgment, in real time, with expertise, often while tired.</p>
+          <p>This paper argues for a different design center. The next dashboard should not show sensors; it should reason about the plant. It should fuse many inputs over time, judge each reading against what is <em>normal for this cultivar on this day of this stage</em>, surface the leading indicators of trouble days before they become visible on the plant, and prescribe the next step — with its evidence and its confidence attached. Most of the time it should be quiet. We call this philosophy <strong>Plant-State Intelligence</strong>, and the surface it presents the <strong>calm dashboard</strong>.</p>
+        </div>
+
+        <h2 id="s1"><span class="hn">1</span> The problem with the sensor dashboard</h2><div class="rule"></div>
+        <p class="lede">The conventional grow-room dashboard is a <em>telemetry dump</em>. Its implicit theory of operation is: "expose every measurement, and a skilled grower will know what to do." That theory fails in seven predictable ways.</p>
+        <ol class="body">
+          <li><strong>It shows the environment, but the grower cares about the plant.</strong> Every sensor measures the plant's <em>surroundings</em> — air, root zone, light. None measures vigor, stress, or transpiration directly. There is an inference gap between "VPD is 1.6 kPa" and "the plant is about to close its stomata," and today the dashboard makes the human cross that gap, unaided, every time they look.</li>
+          <li><strong>It is reactive, not anticipatory.</strong> A graph only looks bad <em>after</em> the plant is already stressed. By the time a line crosses a threshold, the damage — salt accumulation, a stalled dryback, a missed irrigation — has been accruing for hours or days.</li>
+          <li><strong>It has no memory and no context.</strong> A graph shows <em>now</em> against a fixed time window. It does not know that 1.4 kPa is fine in late flower but punishing in early veg, or that this EC climb is abnormal <em>for day 23</em>, or that this dryback rate is slower than the same cultivar ran last cycle. Judgment requires a baseline; the dashboard supplies none.</li>
+          <li><strong>Threshold alarms cry wolf.</strong> Static high/low limits fire on transient blips — a door opened, a lights-on spike — and growers learn to ignore them. Alarm fatigue means the one alert that mattered is buried in noise.</li>
+          <li><strong>It thinks one sensor at a time.</strong> Real plant health is multivariate and temporal. "Leaf temp up" alone is noise; "leaf temp up <em>and</em> transpiration proxy flat <em>and</em> substrate dryback unusually deep" is a diagnosis. Single-channel widgets can't express the cross-signal patterns where the truth lives.</li>
+          <li><strong>It imposes cognitive load as a feature.</strong> More graphs are sold as more visibility. In practice they are more for the human to scan, correlate, and hold in working memory. The dashboard competes with the plant for the grower's attention — and the plant should win.</li>
+          <li><strong>It stops at symptoms.</strong> Even a perfect reading of a symptom (tip burn appearing) is a lagging confession of a problem that began upstream (pore-water EC creeping past the plant's tolerance four days earlier). The dashboard names the symptom and leaves the diagnosis, the cause, and the fix to the human.</li>
+        </ol>
+        <div class="punch">The summary indictment: <strong>we built instruments and called them intelligence.</strong> A cockpit full of gauges is not a co-pilot.</div>
+
+        <h2 id="s2"><span class="hn">2</span> The shift: six inversions</h2><div class="rule"></div>
+        <p>Plant-State Intelligence is defined by inverting six assumptions baked into the sensor dashboard.</p>
+        <table class="tbl">
+          <thead><tr><th>Axis</th><th>From — gauge cluster</th><th>To — calm dashboard</th></tr></thead>
+          <tbody>
+            <tr><td>1 · Object</td><td class="from">Instrumentation — show the environment</td><td class="to">Inference — estimate the plant's state</td></tr>
+            <tr><td>2 · Reference</td><td class="from">Fixed thresholds</td><td class="to">Learned trajectories / per-stage baselines</td></tr>
+            <tr><td>3 · Breadth</td><td class="from">One signal per widget</td><td class="to">Multi-input sensor fusion</td></tr>
+            <tr><td>4 · Timing</td><td class="from">Lagging indicators (symptoms)</td><td class="to">Leading indicators (precursors)</td></tr>
+            <tr><td>5 · Output</td><td class="from">Alerting — "a number moved"</td><td class="to">Prescription — "do this, by when, or expect that"</td></tr>
+            <tr><td>6 · Posture</td><td class="from">Always-on wall of graphs</td><td class="to">Exception-based; quiet by default</td></tr>
+          </tbody>
+        </table>
+        <p>None of these throws away the raw data. The sensors and graphs still exist — they move to the basement, available on drill-down for the expert and the post-mortem. What changes is what occupies the grower's primary attention: not the measurements, but the <em>meaning</em>.</p>
+
+        <h2 id="s3"><span class="hn">3</span> Design principles</h2><div class="rule"></div>
+        <ul class="body">
+          <li><strong>Infer the plant, instrument the room.</strong> The headline unit of the dashboard is plant state, not a sensor channel.</li>
+          <li><strong>Normal is a trajectory, not a line.</strong> Every value is judged against the expected envelope for this cultivar × stage × point-in-photoperiod, learned from your own historical runs.</li>
+          <li><strong>No signal stands alone.</strong> Conclusions come from fused evidence across environment, substrate, irrigation, vision, and equipment.</li>
+          <li><strong>Lead, don't lag.</strong> Optimize for the earliest reliable precursor, not the cleanest confirmation.</li>
+          <li><strong>Prescribe, with a number.</strong> An advisory that doesn't name the action and the setpoint is just a prettier alarm.</li>
+          <li><strong>Show your work.</strong> Every advisory carries its evidence chain and a confidence level. Trust is earned by explainability.</li>
+          <li><strong>Silence is the product.</strong> A calm screen means "nothing needs you." The dashboard speaks only when it has something worth saying.</li>
+          <li><strong>Automation is opt-in and gated.</strong> The system advises first. It acts only on what the grower has explicitly licensed it to act on — and never on the irreversible or the expensive without a human.</li>
+        </ul>
+
+        <h2 id="s4"><span class="hn">4</span> The plant-state model — what we infer</h2><div class="rule"></div>
+        <p>The pipeline estimates four interacting states. The first two are measured directly; the third is the point of the whole exercise; the fourth keeps the system honest.</p>
+        <h3>A · Environmental state</h3>
+        <p>Air temp, RH, VPD, CO₂, PPFD/DLI. Already well covered — but reframed as <em>integrals and rates</em>, not instants: VPD-hours accumulated today, DLI to date, rate of RH recovery at lights-off.</p>
+        <h3>B · Substrate state</h3>
+        <p>Water content, pore-water EC, root-zone temp, and the <em>derived</em> crop-steering metrics that matter more than any raw value: dryback depth, dryback rate, field-capacity recovery, shot-to-shot WC response, the generative/vegetative balance the irrigation is actually producing.</p>
+        <h3>C · Plant physiological state — the inference layer</h3>
+        <p>Not measured, <em>estimated</em> by fusing the others:</p>
+        <ul class="body">
+          <li><strong>Transpiration proxy</strong> — modeled from VPD, light, and substrate WC response; the closest thing to "is the plant breathing."</li>
+          <li><strong>Stress index</strong> — a composite flag for stomatal-closure conditions (VPD too high, dryback too deep, root zone too hot).</li>
+          <li><strong>Vigor / stacking trajectory</strong> — is the plant on the growth curve this cultivar held last cycle at this stage?</li>
+          <li><strong>Steering response</strong> — did the plant respond to the generative/vegetative push the way the irrigation strategy intended?</li>
+        </ul>
+        <h3>D · Operational &amp; equipment state</h3>
+        <p>Dosing events, valve/emitter behavior, dehumidifier and HVAC current draw and recovery slopes, and — critically — <strong>sensor health itself</strong>. A flatlined or drifting sensor is a first-class signal: the system must know when it is blind rather than infer confidently from bad data.</p>
+        <h3>E · Vision state (where cameras exist)</h3>
+        <p>Canopy imagery — already on-site for security — becomes a horticultural input: canopy color and uniformity, wilt/droop at lights-on, height/stacking over days, early discoloration. Slow visual drift the human eye misses across daily walk-throughs is exactly what time-lapse differencing catches.</p>
+        <div class="callout">The output of this layer is not fifteen numbers. It is a short list of <strong>named conditions</strong>, each with a confidence and an evidence chain.</div>
+
+        <h2 id="s5"><span class="hn">5</span> Architecture</h2><div class="rule"></div>
+        <p>A six-layer pipeline. It maps cleanly onto a Home Assistant–centered stack; most operations already have layers 0–1 and don't know it.</p>
+        <pre><span class="k">0  INGEST</span>        All raw streams → one timebase.
+                 Climate, substrate (TEROS/WC-EC-temp), irrigation/dosing
+                 events, power, cameras, HVAC/dehu telemetry.
+
+<span class="k">1  DERIVE</span>        Raw → meaningful. VPD, dryback % and rate, DLI, VPD-hours,
+                 shot response, recovery slopes, integrals. (Template/
+                 derived sensors.)
+
+<span class="k">2  BASELINE</span>      Per-cultivar × stage × photoperiod-phase expected
+                 envelopes. Seeded from horticultural priors (e.g. Athena
+                 targets); refined from your own historical runs.
+
+<span class="k">3  INFER</span>         Fuse layers 1–2 into plant-state estimates and named
+                 conditions, each with confidence + evidence. Rules +
+                 anomaly detection + (optionally) an LLM reasoning pass.
+
+<span class="k">4  PRESCRIBE</span>     Map condition → concrete action: the setpoint change,
+                 the irrigation tweak, the service task — with a deadline
+                 and an expected outcome if ignored.
+
+<span class="k">5  PRESENT</span>       The calm dashboard. Status, watchlist, advisories,
+                 with evidence drill-down and raw graphs demoted beneath.
+
+      <span class="k">(5b GATED)</span>   CLOSED LOOP — auto-apply only the low-risk,
+                 explicitly-licensed actions; human-approve everything else.</pre>
+        <p>A note on layer 5b, and a deliberate one. The advisory-first, human-in-the-loop posture is not a limitation to be engineered away — it is the design. An operation can run permanently at "advise only" and capture most of the value. Autonomous control is earned, channel by channel, after the advisories have proven themselves correct over many cycles. <em>The intelligence moves to the dashboard long before the actuation does.</em></p>
+
+        <h2 id="s6"><span class="hn">6</span> The new dashboard surface</h2><div class="rule"></div>
+        <p>What the grower opens to. Four zones, in priority order. On a good day, three of them are empty.</p>
+        <div class="zone"><div class="zh"><span class="num">1</span><h3>Headline — one line of plant truth</h3></div>
+          <p style="margin:0;color:var(--ink2)">Not a number. A judgment, in plain language, with a status color. This is 90% of what a busy grower needs 90% of the time.</p>
+          <div class="ex">"Flower Day 24 · Room 3 · On-track. Steering generative as intended. No action needed."</div></div>
+        <div class="zone"><div class="zh"><span class="num">2</span><h3>Watchlist — drifting, not yet wrong</h3></div>
+          <p style="margin:0;color:var(--ink2)">The early-warning shelf. Things trending out of envelope but not yet at action threshold — the precursors. Each is a sentence, not a graph. <strong>This zone is the whole point. It exists to make the next zone rare.</strong></p>
+          <div class="ex">"Pore-water EC up 0.7 mS/cm over 3 days against flat feed. Watching — salt accumulation pattern."</div></div>
+        <div class="zone warn"><div class="zh"><span class="num">3</span><h3>Advisories — act now, here's how</h3></div>
+          <p style="margin:0;color:var(--ink2)">The only zone that should ever interrupt. Each advisory is prescriptive and time-bound.</p>
+          <div class="ex"><span class="sev">⚠ Advisory</span><br><strong>Reduce dryback target 3% in Room 3 (Day 24).</strong><br>Pore-water EC has climbed 0.9 mS/cm over 4 days while feed EC held flat — dryback is too aggressive and salts are concentrating in the root zone. <strong>Tip burn likely within ~48h</strong> if unaddressed. <em>Confidence: high. [Show evidence]</em></div></div>
+        <div class="zone"><div class="zh"><span class="num">4</span><h3>Evidence &amp; raw — the basement</h3></div>
+          <p style="margin:0;color:var(--ink2)">Every advisory expands to its evidence chain: the fused signals, the baseline it violated, the historical precedent. Beneath that, the full raw graph wall still lives — for the expert who wants it and the post-mortem that needs it. Demoted, not deleted.</p></div>
+        <div class="punch">The inversion in one sentence: <strong>the old dashboard was 100% zone ④; the new one leads with ①–③ and keeps ④ in the basement.</strong></div>
+
+        <h2 id="s7"><span class="hn">7</span> Worked scenarios</h2><div class="rule"></div>
+        <p>Four real failure patterns, shown as the old dashboard handles them vs. the new one.</p>
+        <div class="scn"><div class="st">A · The silent salt creep</div><div class="row">
+          <div class="cell old"><span class="tag">Old</span>An EC graph slowly rises. It's still "in the green band." Nobody notices until tip burn appears on day 26; now you're reacting to damage.</div>
+          <div class="cell new"><span class="tag">New</span>Layer 3 fuses rising pore-water EC + flat feed EC + dryback deeper than this cultivar's baseline into one condition on day 22. Advisory: reduce dryback 3% or add a maintenance shot; tip burn projected ~48h out. <strong>Caught four days upstream of the symptom.</strong></div></div></div>
+        <div class="scn"><div class="st">B · The irrigation that didn't land</div><div class="row">
+          <div class="cell old"><span class="tag">Old</span>Dosing controller reports "irrigation ran ✓." The dashboard shows a green checkmark. But an emitter clogged and one row got nothing — invisible until that row wilts.</div>
+          <div class="cell new"><span class="tag">New</span>Layer 3 cross-checks dosing-event-fired against substrate-WC-response. WC didn't rise in zone 4. Advisory: "Irrigation fired but zone 4 didn't respond — suspect clogged emitter / channeling, check row 4." <strong>A single-sensor dashboard literally cannot see this</strong> — it requires fusing the command with its effect.</div></div></div>
+        <div class="scn"><div class="st">C · Stealth morning stress</div><div class="row">
+          <div class="cell old"><span class="tag">Old</span>Every instantaneous value looks fine all day. But RH drops too fast at lights-on, VPD spikes for 40 minutes each morning, the plant won't wake up cleanly, and stacking quietly slows. No single reading ever looks alarming.</div>
+          <div class="cell new"><span class="tag">New</span>Camera shows lights-on droop; transpiration proxy stalls in the first hour; VPD-hours in the morning window run above baseline three days running. Advisory: ramp RH down more slowly / delay first irrigation. <strong>A pattern only visible across time and fused signals.</strong></div></div></div>
+        <div class="scn"><div class="st">D · The dehumidifier dying slowly</div><div class="row">
+          <div class="cell old"><span class="tag">Old</span>Night RH control is fine — until one night mid-flower the dehu fails outright, RH spikes, and you're fighting mold at the worst possible time.</div>
+          <div class="cell new"><span class="tag">New</span>Layer 0 watches equipment telemetry. The dehu's current draw is creeping up for the same RH delta, and its nightly recovery slope is degrading cycle over cycle. Advisory days ahead: "Dehumidifier recovery degrading — likely compressor wear, service before it fails under load." <strong>The failure is predicted, not survived.</strong></div></div></div>
+        <div class="callout">The common thread: every catch comes from <strong>fusing signals over time against a baseline</strong> — precisely what a wall of independent live graphs cannot do, and a human staring at them cannot reliably do either.</div>
+
+        <h2 id="s8"><span class="hn">8</span> Adoption path — crawl, walk, run</h2><div class="rule"></div>
+        <p>This is not a boil-the-ocean rebuild. Each stage ships value and earns the next.</p>
+        <ul class="body">
+          <li><strong>Stage 0 — Telemetry (today).</strong> Raw graphs. The starting point.</li>
+          <li><strong>Stage 1 — Derive.</strong> Compute the metrics that actually matter — dryback %/rate, DLI, VPD-hours, shot response, recovery slopes. Still graphs, but <em>meaningful</em> ones. Low effort, immediate clarity.</li>
+          <li><strong>Stage 2 — Baseline &amp; go quiet.</strong> Establish per-stage/cultivar envelopes (start from known-good targets). Switch from threshold alarms to exception-based attention. <em>This single step kills alarm fatigue.</em></li>
+          <li><strong>Stage 3 — Fuse &amp; diagnose.</strong> Combine signals into named conditions with confidence and evidence. The watchlist and advisory zones come alive.</li>
+          <li><strong>Stage 4 — Prescribe.</strong> Attach the specific action to each condition. The dashboard becomes an advisor.</li>
+          <li><strong>Stage 5 — Close the loop (opt-in, gated).</strong> License the system to auto-apply only the low-risk, well-proven actions; everything irreversible or expensive stays human-approved.</li>
+        </ul>
+        <p>Most of the payoff lands by Stage 3. Stage 5 is optional and should remain so for as long as the operator wants — advisory-first is a stable, valuable end state, not a stepping stone you're obligated to leave.</p>
+
+        <h2 id="s9"><span class="hn">9</span> Trust, confidence, and failure modes</h2><div class="rule"></div>
+        <p>An advisory system that is wrong and confident is worse than no system. Five guardrails are non-negotiable.</p>
+        <ul class="body">
+          <li><strong>Cold-start honestly.</strong> With thin history, seed baselines from horticultural priors, widen the confidence bands, and label outputs "still learning." Never project false certainty from one cycle of data.</li>
+          <li><strong>Make false advisories cheap to correct.</strong> Every advisory is dismissable and markable as a false positive; those marks tune the baselines. Track advisory precision as a first-class metric. Trust is a balance you spend with every wrong call and earn with every right one.</li>
+          <li><strong>Keep the human in the loop where it counts.</strong> Irreversible or costly actions are always human-approved. The system's job is to make the decision obvious, not to make it alone.</li>
+          <li><strong>Treat the system's own blindness as a signal.</strong> A drifted, noisy, or flatlined sensor is itself an advisory ("EC probe in Room 2 reads implausibly flat — suspect failure, EC-derived advisories paused"). The system must know when it cannot see and say so.</li>
+          <li><strong>Never be a black box.</strong> Every conclusion expands to its evidence. A grower who can't see <em>why</em> will, correctly, stop trusting the <em>what</em>.</li>
+        </ul>
+
+        <h2 id="s10"><span class="hn">10</span> Measuring success</h2><div class="rule"></div>
+        <p>The dashboard itself becomes measurable. Targets, run over run:</p>
+        <div class="metric"><div class="mn">Lead time</div><div class="md">Hours/days between an advisory and when the problem would have become visible. <em>Higher is better — the core KPI.</em></div></div>
+        <div class="metric"><div class="mn">Surprises</div><div class="md">Issues that reached visible plant damage with no prior advisory. <em>Drive to zero.</em></div></div>
+        <div class="metric"><div class="mn">Advisory precision</div><div class="md">Acted-upon advisories ÷ total, plus the false-positive rate. <em>Higher precision = more trust = more action.</em></div></div>
+        <div class="metric"><div class="mn">Dashboard dwell time</div><div class="md">Minutes/day the grower spends staring at the dashboard. <em>Lower is better</em> — it should return attention to the plants.</div></div>
+        <div class="metric"><div class="mn">Decisions surfaced</div><div class="md">Count of real, actionable decisions raised per week. <em>The output is decisions, not pageviews.</em></div></div>
+        <div class="metric"><div class="mn">Outcome variance</div><div class="md">Yield and quality consistency cycle over cycle. <em>Fewer bad surprises at harvest.</em></div></div>
+        <p style="margin-top:22px">If the new dashboard is working, the grower looks at it <em>less</em>, is surprised <em>less</em>, and harvests <em>more consistently</em>.</p>
+
+        <h2 id="s11"><span class="hn">11</span> Closing</h2><div class="rule"></div>
+        <p>The sensor dashboard answered "can we measure it?" — and the answer is now an emphatic yes. That question is solved. The question that actually governs yield and quality is the one the gauge cluster never even asked: <strong>"what does all of this mean, and what should I do next?"</strong></p>
+        <p>Plant-State Intelligence moves the dashboard from instrument to advisor. It infers the plant instead of displaying the room, judges against learned trajectories instead of fixed lines, fuses many signals over time instead of one at a glance, leads with precursors instead of lagging on symptoms, prescribes a next step instead of sounding an alarm, and — most radically — stays quiet until it has something worth saying.</p>
+        <p>The graphs don't go away. They go to the basement, where the expert and the post-mortem can still find them. What rises to the top is the thing that was always the point: <strong>keeping the crop on its trajectory, and catching the drift before it becomes damage.</strong></p>
+      </article>
+
+      <!-- ===================== 12 · DASHBOARDS GALLERY ===================== -->
+      <article class="wide">
+        <h2 id="s12"><span class="hn">12</span> The reference dashboards</h2><div class="rule"></div>
+        <p style="max-width:var(--measure)">Two working builds of the philosophy. Both lead with a one-line plant truth and a short stack of prescriptive advisories; both demote raw sensors to a drill-down. <a href="demo.html" target="_blank" rel="noopener"><strong>The facility demo is live and interactive →</strong></a> (seed data, runs in your browser).</p>
+        <div class="gallery">
+          <div class="shot"><a href="demo.html" target="_blank" rel="noopener"><img src="assets/facility-overview.png" alt="Multi-room facility overview" loading="lazy"></a><div class="cap"><b>Facility overview</b> — six rooms, one headline ("1 room to sort out"), prescriptive advisories, plant-state AI, and trends. Raw numbers live one tap down. <a href="demo.html" target="_blank" rel="noopener">Open live demo →</a></div></div>
+        </div>
+        <div class="gal2" style="margin-top:20px">
+          <div class="shot"><img src="assets/f2-overview.png" alt="Single-room live dashboard with zone tanks and plant-state gauges" loading="lazy"><div class="cap"><b>Single room, live</b> — F2 wired to Home Assistant. Zone water-tanks, inferred plant-state gauges (CWSI, transpiration, dryback vs target), and the real failure modes as advisories.</div></div>
+          <div class="shot"><img src="assets/facility-mobile.png" alt="Mobile layout with bottom navigation" loading="lazy"><div class="cap"><b>Built for the floor</b> — mobile-first: stacked cards, bottom nav, bottom-sheet detail. Usable one-handed between rows.</div></div>
+        </div>
+      </article>
+
+      <!-- ===================== 13 · THE PROMPT ===================== -->
+      <article>
+        <h2 id="s13"><span class="hn">13</span> Build one — the prompt</h2><div class="rule"></div>
+        <p>Paste this into a capable code model, fill the <code>[FILL]</code> slots, and it will produce a single self-contained HTML dashboard that obeys the philosophy above — and dodges the build traps learned the hard way (the worst: a charting library's objects sharing a reactive proxy with the UI framework, which recurses into a stack overflow).</p>
+        <div class="promptbox">
+          <div class="ph"><span class="dot" style="background:var(--ok)"></span><span class="dot" style="background:var(--warn)"></span><span class="dot" style="background:var(--crit)"></span><span style="margin-left:6px">plant-state-dashboard.prompt</span><button class="copybtn" id="copyBtn">Copy prompt</button></div>
+<pre id="promptText">You are a world-class UI/UX designer and senior front-end engineer who ships award-winning real-time
+operational dashboards for GMP cannabis cultivation. Build the single best browser dashboard for:
+
+  SCOPE:        [FILL: e.g. "one room, 3 crop-steering zones" OR "whole facility, 6 rooms"]
+  DATA SOURCE:  [FILL: "LIVE Home Assistant REST at http://HOST:8123/api/states, token via
+                 localStorage fallback to embedded long-lived token" OR "seed data, simulated live"]
+  DESIGN:       [FILL: "Premium operational dark glass" OR "Accessibility-first (dyslexia/floor)"]
+  ENTITIES:     [FILL: entity map / metric list with units, bands, P3 floors, EC target, etc.]
+
+Follow the Plant-State Intelligence philosophy:
+- Infer the plant, not the room. Calm by default — quiet unless something needs the grower.
+- Information architecture, in priority order: (1) Headline = one line of plant truth + status color;
+  (2) Watchlist = drifting, not yet wrong; (3) Advisories = prescriptive (next step + confidence +
+  evidence), the ONLY zone that may interrupt; (4) Basement = raw readings + graphs, collapsed.
+  Plus plant-state gauges, a zone/room grid, a trends chart, and an AI co-pilot that answers from
+  live context.
+- Advisories come from a pure rules array that FUSES signals (encode real failure modes: pump
+  dead-head = pump drawing power with all valves closed; corner hotspot; shallow dryback; CO2 high
+  while dark; engine unhealthy; sensor health degraded). Each advisory:
+  {sev, icon, confidence, title, detail, action, evidence}.
+
+Tech (premium): Tailwind v4 browser CDN, Alpine 3, Chart.js 4, inline Lucide-style SVG icons. Self-
+contained single file. Responsive: mobile bottom-nav + bottom-sheets -> desktop sidebar + header.
+Command palette (Cmd-K). WCAG AA, visible focus, prefers-reduced-motion, >=44px targets.
+
+NON-NEGOTIABLE (these break the page if ignored):
+- Keep Chart.js instances AND their data arrays in MODULE scope, never in Alpine/reactive state, and
+  never pass a reactive array into new Chart() — copy it ([...arr]). (Reactive proxy + Chart proxy =
+  infinite mutual wrapping = "Maximum call stack size exceeded".)
+- Use double-quoted JS strings for any text containing apostrophes (no hand-escaped \').
+- Balance every new Chart() option object; a single missing brace blanks the page.
+- Token: prefer localStorage.hassTokens access_token; embed a long-lived token only as fallback, with
+  a loud SECURITY comment (file is served no-auth on the LAN = full HA control). Never publish a
+  token-bearing file. Blank the token if it is only ever viewed logged-in.
+- On fetch failure, show a "can't reach HA — treat as blind" banner.
+
+Make it feel like $200k enterprise software while staying a lightweight single HTML file. An operator
+must grasp whole-room health in under 5 seconds. Output ONLY the complete HTML file, starting with
+&lt;!DOCTYPE html&gt;.</pre>
+        </div>
+        <p class="callout" style="margin-top:4px">Companion spec with the full build-rules checklist and design tiers ships in the repo as <code>plant-state-dashboard-spec.md</code>.</p>
+      </article>
+
+      <!-- ===================== SERIES + FOOTER ===================== -->
+      <div class="series">
+        <p class="lab">More in this series</p>
+        <div class="grid">
+          <a class="sib this" href="./"><div class="st">🌿 Plant-State Dashboards</div><div class="sd">From telemetry to intelligence — the calm dashboard.</div></a>
+          <a class="sib" href="https://jaketherabbit.github.io/cannabis-grow-room-levers/" target="_blank" rel="noopener"><div class="st">🎛️ Grow-Room Levers</div><div class="sd">A systems-thinking field guide for medicinal cannabis cultivation.</div></a>
+          <a class="sib" href="https://jaketherabbit.github.io/hash-rosin-pressing-levers/" target="_blank" rel="noopener"><div class="st">🫧 Hash Rosin Pressing Levers</div><div class="sd">Farm to dab — four input materials, lever &amp; interaction matrices.</div></a>
+          <a class="sib" href="https://jaketherabbit.github.io/grow-room-training/" target="_blank" rel="noopener"><div class="st">📘 Grow-Room Training</div><div class="sd">Mobile-first manual + textbook + LLM agent playbook.</div></a>
+        </div>
+      </div>
+
+      <footer class="f">
+        <p><em>Working name: <strong>Plant-State Intelligence (PSI)</strong>; the surface, the <strong>calm dashboard</strong>. Both placeholders — substance over branding.</em></p>
+        <p><em>Next step to build it: pick one room and one failure pattern from §7, implement Stages 1–3 for just that pattern in Home Assistant, run it shadow-mode for a cycle against the existing dashboard. Prove the lead time on one advisory before scaling.</em></p>
+        <p style="margin-top:16px;color:var(--ink3)">© 2026 Legacy Ag · JakeTheRabbit · v1.0 · <a href="javascript:window.print()">Print / save as PDF →</a> · <a href="https://github.com/JakeTheRabbit/plant-state-dashboard" target="_blank" rel="noopener">Source on GitHub →</a></p>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<button class="totop" id="totop" aria-label="Back to top">↑</button>
+
+<script>
+  const prog=document.getElementById('progress'), totop=document.getElementById('totop');
+  addEventListener('scroll',()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);prog.style.width=(sc*100)+'%';totop.classList.toggle('show',h.scrollTop>700);},{passive:true});
+  totop.onclick=()=>scrollTo({top:0,behavior:'smooth'});
+  const links=[...document.querySelectorAll('nav.toc a')];
+  const map=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.classList.remove('active'));const a=map.get(e.target.id);if(a)a.classList.add('active');}});},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('[id^="s"],#abstract').forEach(s=>io.observe(s));
+  // copy prompt
+  const cb=document.getElementById('copyBtn');
+  cb.onclick=async()=>{ const t=document.getElementById('promptText').innerText; try{ await navigator.clipboard.writeText(t); cb.textContent='Copied ✓'; setTimeout(()=>cb.textContent='Copy prompt',1600);}catch(e){ cb.textContent='Press Ctrl+C'; } };
+</script>
+</body>
+</html>

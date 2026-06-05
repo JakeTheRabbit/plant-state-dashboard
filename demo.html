@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0c10">
+<title>Legacy Ag · Cultivation Intelligence</title>
+<!--
+  LEGACY AG — CULTIVATION INTELLIGENCE
+  A premium, GMP-oriented multi-room cultivation dashboard built on the Plant-State Intelligence philosophy:
+    • Infer the plant, don't just instrument the room.
+    • Calm by default — exception-based. The facility headline tells the truth in one glance.
+    • Advisories are prescriptive: next step + confidence + evidence (not bare threshold alarms).
+    • A "watchlist" surfaces leading indicators (drifting, not yet wrong).
+    • Raw sensor grids are demoted into room detail — meaning lives on the surface.
+  Self-contained single file. Deps: Tailwind v4 browser, Alpine 3, Chart.js 4 (CDN). Seed data simulates live ops.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style type="text/tailwindcss">
+  @theme {
+    --color-ink: #e7ecf2;
+    --color-canvas: #0a0c10;
+  }
+</style>
+<style>
+  :root{ color-scheme:dark; }
+  html,body{background:#0a0c10;color:#e7ecf2;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#1f2630;border-radius:9px;border:2px solid #0a0c10}
+  ::-webkit-scrollbar-track{background:transparent}
+  .glass{background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02));
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.08)}
+  .glass-strong{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));
+    -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1)}
+  .ring-glow-ok{box-shadow:0 0 0 1px rgba(16,185,129,.25),0 8px 30px -12px rgba(16,185,129,.45)}
+  .ring-glow-warn{box-shadow:0 0 0 1px rgba(251,191,36,.28),0 8px 30px -12px rgba(251,191,36,.5)}
+  .ring-glow-crit{box-shadow:0 0 0 1px rgba(239,68,68,.32),0 8px 34px -12px rgba(239,68,68,.55)}
+  .lift{transition:transform .18s cubic-bezier(.4,0,.2,1),box-shadow .18s,border-color .18s,background .18s}
+  @media(hover:hover){.lift:hover{transform:translateY(-3px)}}
+  .pulse-dot{position:relative}
+  .pulse-dot:before{content:"";position:absolute;inset:-4px;border-radius:999px;background:currentColor;opacity:.35;animation:ping 1.8s cubic-bezier(0,0,.2,1) infinite}
+  @keyframes ping{75%,100%{transform:scale(2.2);opacity:0}}
+  .fade-enter{animation:fade .35s ease both}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  [x-cloak]{display:none!important}
+  .grad-text{background:linear-gradient(135deg,#6ee7b7,#34d399 55%,#a7f3d0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .scrollx{scrollbar-width:thin}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+  .nav-active{background:rgba(16,185,129,.12);color:#6ee7b7}
+  .nav-active svg{color:#34d399}
+  canvas{max-width:100%}
+</style>
+</head>
+<body x-data="app" x-cloak @keydown.window="onKey($event)" class="min-h-screen overflow-x-hidden">
+
+<!-- ===================== AMBIENT BACKGROUND ===================== -->
+<div class="fixed inset-0 -z-10 pointer-events-none">
+  <div class="absolute -top-32 -left-24 w-[40rem] h-[40rem] rounded-full blur-3xl opacity-20" style="background:radial-gradient(circle,#10b981,transparent 60%)"></div>
+  <div class="absolute top-1/3 -right-32 w-[36rem] h-[36rem] rounded-full blur-3xl opacity-10" style="background:radial-gradient(circle,#22d3ee,transparent 60%)"></div>
+  <div class="absolute inset-0" style="background:radial-gradient(1200px 600px at 50% -10%,rgba(16,185,129,.06),transparent 60%)"></div>
+</div>
+
+<div class="flex min-h-screen">
+
+  <!-- ===================== DESKTOP SIDEBAR ===================== -->
+  <aside class="hidden md:flex flex-col shrink-0 sticky top-0 h-screen glass border-r border-white/8 transition-all duration-300"
+         :class="sidebarOpen ? 'w-64' : 'w-[72px]'">
+    <div class="flex items-center gap-3 px-4 h-16 border-b border-white/8">
+      <div class="w-9 h-9 rounded-xl grid place-items-center bg-emerald-500/15 ring-1 ring-emerald-400/30 shrink-0">
+        <span x-html="icons.leaf" class="text-emerald-400 w-5 h-5 block"></span>
+      </div>
+      <div x-show="sidebarOpen" class="min-w-0">
+        <div class="font-semibold tracking-tight leading-tight">Legacy Ag</div>
+        <div class="text-[11px] text-slate-400 leading-tight">Cultivation Intelligence</div>
+      </div>
+    </div>
+    <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto scrollx">
+      <template x-for="item in nav" :key="item.id">
+        <button @click="go(item.id)"
+          class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-300 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+          :class="view===item.id && 'nav-active font-medium'" :title="item.label">
+          <span x-html="icons[item.icon]" class="w-5 h-5 shrink-0 block"></span>
+          <span x-show="sidebarOpen" x-text="item.label" class="truncate"></span>
+          <span x-show="sidebarOpen && item.badge && item.badge()" x-text="item.badge && item.badge()"
+                class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-semibold"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-2 border-t border-white/8">
+      <button @click="sidebarOpen=!sidebarOpen" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/5 transition">
+        <span x-html="sidebarOpen ? icons.collapse : icons.expand" class="w-5 h-5 block"></span>
+        <span x-show="sidebarOpen">Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="flex-1 min-w-0 flex flex-col pb-20 md:pb-0">
+
+    <!-- top header -->
+    <header class="sticky top-0 z-30 glass border-b border-white/8">
+      <div class="flex items-center gap-3 px-4 md:px-6 h-16">
+        <div class="md:hidden w-8 h-8 rounded-lg grid place-items-center bg-emerald-500/15 ring-1 ring-emerald-400/30">
+          <span x-html="icons.leaf" class="text-emerald-400 w-5 h-5 block"></span>
+        </div>
+        <div class="min-w-0">
+          <h1 class="font-semibold tracking-tight leading-tight truncate" x-text="currentTitle()"></h1>
+          <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-400 leading-tight">
+            <span class="inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>GMP compliant</span>
+            <span class="text-slate-600">•</span><span>Licence active</span>
+            <span class="text-slate-600">•</span>
+            <span>Updated <span x-text="ago(lastUpdated)"></span></span>
+          </div>
+        </div>
+
+        <!-- command/search -->
+        <button @click="cmdOpen=true"
+          class="ml-auto hidden sm:flex items-center gap-2 h-10 px-3 rounded-xl glass hover:border-white/20 text-slate-400 text-sm transition w-64 lift">
+          <span x-html="icons.search" class="w-4 h-4 block"></span>
+          <span>Search or ask AI…</span>
+          <kbd class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-white/10 border border-white/10">⌘K</kbd>
+        </button>
+
+        <!-- notifications -->
+        <button @click="go('alerts')" class="relative w-10 h-10 grid place-items-center rounded-xl glass hover:border-white/20 transition lift"
+                aria-label="Alerts">
+          <span x-html="icons.bell" class="w-5 h-5 block text-slate-300"></span>
+          <span x-show="unacked().length" class="absolute -top-1 -right-1 min-w-5 h-5 px-1 grid place-items-center text-[10px] font-bold rounded-full bg-red-500 text-white"
+                x-text="unacked().length"></span>
+        </button>
+
+        <!-- user -->
+        <button class="flex items-center gap-2.5 pl-1 pr-2.5 h-10 rounded-xl glass hover:border-white/20 transition lift">
+          <span class="w-7 h-7 rounded-lg grid place-items-center bg-gradient-to-br from-emerald-400 to-emerald-600 text-[12px] font-bold text-emerald-950">BD</span>
+          <div class="hidden lg:block text-left leading-tight">
+            <div class="text-xs font-medium">B. Disdale</div>
+            <div class="text-[10px] text-slate-400">Facility Director</div>
+          </div>
+        </button>
+      </div>
+    </header>
+
+    <!-- view container -->
+    <main class="flex-1 px-4 md:px-6 py-5 md:py-6 max-w-[1700px] w-full mx-auto">
+
+      <!-- ============ DASHBOARD ============ -->
+      <section x-show="view==='dashboard'" class="fade-enter space-y-6">
+
+        <!-- facility headline (calm, exception-based) -->
+        <div class="glass-strong rounded-3xl p-5 md:p-6 relative overflow-hidden"
+             :class="facilityStatus().sev==='ok'?'ring-glow-ok':facilityStatus().sev==='crit'?'ring-glow-crit':'ring-glow-warn'">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 rounded-2xl grid place-items-center shrink-0"
+                 :class="sevBg(facilityStatus().sev)">
+              <span x-html="facilityStatus().sev==='ok'?icons.leaf:facilityStatus().sev==='crit'?icons.alert:icons.eye" class="w-7 h-7 block" :class="sevText(facilityStatus().sev)"></span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-xl md:text-2xl font-bold tracking-tight" x-text="facilityStatus().big"></div>
+              <div class="text-sm text-slate-400 mt-1" x-text="facilityStatus().line"></div>
+            </div>
+            <button @click="aiOpen=true" class="hidden sm:flex items-center gap-2 h-10 px-4 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-400/30 text-emerald-300 text-sm font-medium hover:bg-emerald-500/25 transition lift">
+              <span x-html="icons.ai" class="w-4 h-4 block"></span> Ask Plant-State AI
+            </button>
+          </div>
+        </div>
+
+        <!-- hero KPI row -->
+        <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
+          <template x-for="k in kpis()" :key="k.label">
+            <div class="glass rounded-2xl p-4 lift hover:border-white/15 cursor-default">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] uppercase tracking-wider text-slate-400" x-text="k.label"></span>
+                <span x-html="icons[k.icon]" class="w-4 h-4 block" :class="k.tint||'text-slate-500'"></span>
+              </div>
+              <div class="mt-2 flex items-end gap-1.5">
+                <span class="text-2xl font-bold tracking-tight" x-text="k.value"></span>
+                <span class="text-xs text-slate-500 mb-1" x-text="k.unit||''"></span>
+              </div>
+              <div class="mt-1 flex items-center gap-1 text-[11px]" :class="k.trendUp?'text-emerald-400':k.trendDown?'text-amber-400':'text-slate-500'">
+                <span x-show="k.trendUp" x-html="icons.up" class="w-3 h-3 block"></span>
+                <span x-show="k.trendDown" x-html="icons.down" class="w-3 h-3 block"></span>
+                <span x-text="k.sub"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- live rooms grid -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2"><span x-html="icons.rooms" class="w-4 h-4 block text-slate-400"></span> Live rooms</h2>
+            <button @click="go('rooms')" class="text-xs text-emerald-400 hover:text-emerald-300">View all →</button>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
+            <template x-for="r in rooms" :key="r.id">
+              <button @click="openRoom(r.id)" class="text-left glass rounded-2xl p-4 lift hover:border-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+                      :class="r.status==='crit'?'ring-glow-crit':r.status==='warn'?'ring-glow-warn':''">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="font-semibold tracking-tight truncate" x-text="r.name"></div>
+                    <div class="text-[11px] text-slate-400 truncate" x-text="r.stage + ' · ' + r.weekLabel + ' · ' + r.strain"></div>
+                  </div>
+                  <span class="shrink-0 text-[10px] font-semibold px-2 py-1 rounded-full inline-flex items-center gap-1"
+                        :class="pillClass(r.status)">
+                    <span class="w-1.5 h-1.5 rounded-full pulse-dot" :class="dotClass(r.status)"></span>
+                    <span x-text="statusWord(r.status)"></span>
+                  </span>
+                </div>
+                <div class="mt-3 flex items-end justify-between gap-3">
+                  <div>
+                    <div class="text-3xl font-bold tracking-tight leading-none" x-text="r.vpd.toFixed(2)"></div>
+                    <div class="text-[11px] text-slate-400 mt-1">VPD kPa <span class="text-slate-600">·</span> <span x-text="vpdJudge(r)"></span></div>
+                  </div>
+                  <canvas :id="'dspark-'+r.id" width="120" height="40" class="opacity-90"></canvas>
+                </div>
+                <div class="mt-3 grid grid-cols-4 gap-2 text-center">
+                  <div><div class="text-sm font-semibold" x-text="r.temp.toFixed(1)+'°'"></div><div class="text-[10px] text-slate-500">Temp</div></div>
+                  <div><div class="text-sm font-semibold" x-text="Math.round(r.rh)+'%'"></div><div class="text-[10px] text-slate-500">RH</div></div>
+                  <div><div class="text-sm font-semibold" x-text="r.lightsOn?Math.round(r.ppfd):'—'"></div><div class="text-[10px] text-slate-500" x-text="r.lightsOn?'PPFD':'dark'"></div></div>
+                  <div><div class="text-sm font-semibold" x-text="r.ec.toFixed(1)"></div><div class="text-[10px] text-slate-500">EC</div></div>
+                </div>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- split: env trends + AI/power -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div class="xl:col-span-2 glass rounded-2xl p-4 md:p-5">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <h3 class="text-sm font-semibold flex items-center gap-2"><span x-html="icons.activity" class="w-4 h-4 block text-emerald-400"></span> Environmental trends</h3>
+              <div class="flex items-center gap-1.5">
+                <select x-model="trendRoom" @change="rebuildEnv()" class="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none">
+                  <template x-for="r in rooms" :key="r.id"><option :value="r.id" x-text="r.name"></option></template>
+                </select>
+                <template x-for="rng in ['6h','24h','7d']" :key="rng">
+                  <button @click="trendRange=rng;rebuildEnv()" class="text-xs px-2.5 py-1.5 rounded-lg transition"
+                          :class="trendRange===rng?'bg-emerald-500/20 text-emerald-300':'text-slate-400 hover:bg-white/5'" x-text="rng"></button>
+                </template>
+              </div>
+            </div>
+            <div class="h-64"><canvas id="envChart"></canvas></div>
+          </div>
+
+          <div class="glass rounded-2xl p-4 md:p-5 flex flex-col">
+            <h3 class="text-sm font-semibold flex items-center gap-2 mb-3"><span x-html="icons.ai" class="w-4 h-4 block text-emerald-400"></span> Plant-State AI</h3>
+            <div class="space-y-2.5 flex-1 overflow-y-auto scrollx pr-1" style="max-height:15rem">
+              <template x-for="ins in insights" :key="ins.id">
+                <button @click="openInsight(ins)" class="w-full text-left p-3 rounded-xl bg-white/[0.03] border border-white/8 hover:border-emerald-400/30 hover:bg-emerald-500/[0.06] transition">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="dotClass(ins.sev)"></span>
+                    <span class="text-xs font-semibold" x-text="ins.title"></span>
+                  </div>
+                  <div class="text-[11px] text-slate-400 line-clamp-2" x-text="ins.summary"></div>
+                </button>
+              </template>
+            </div>
+            <button @click="aiOpen=true" class="mt-3 w-full h-10 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-400/30 text-emerald-300 text-sm font-medium hover:bg-emerald-500/25 transition">Open AI co-pilot</button>
+          </div>
+        </div>
+
+        <!-- alerts + watchlist -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div class="xl:col-span-2">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold flex items-center gap-2"><span x-html="icons.alerts" class="w-4 h-4 block text-amber-400"></span> Advisories — what needs you</h3>
+              <span class="text-xs text-slate-500" x-text="activeAlerts().length+' active'"></span>
+            </div>
+            <div class="space-y-2.5">
+              <template x-for="a in activeAlerts()" :key="a.id">
+                <div class="glass rounded-2xl p-4 fade-enter" :class="a.sev==='crit'?'border-l-4 border-l-red-500':'border-l-4 border-l-amber-400'">
+                  <div class="flex items-start gap-3">
+                    <div class="w-9 h-9 rounded-xl grid place-items-center shrink-0" :class="sevBg(a.sev)">
+                      <span x-html="icons[a.icon]||icons.alert" class="w-4.5 h-4.5 block" :class="sevText(a.sev)"></span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded" :class="a.sev==='crit'?'bg-red-500 text-white':'bg-amber-400 text-amber-950'" x-text="a.sev==='crit'?'Urgent':'Advisory'"></span>
+                        <span class="text-sm font-semibold" x-text="a.title"></span>
+                        <span class="text-[11px] text-slate-500" x-text="'· '+a.room"></span>
+                      </div>
+                      <p class="text-[13px] text-slate-400 mt-1.5 leading-relaxed" x-text="a.detail"></p>
+                      <div class="mt-2 text-[13px] flex items-start gap-2 p-2.5 rounded-lg bg-white/[0.03] border border-white/8">
+                        <span x-html="icons.arrow" class="w-4 h-4 block text-emerald-400 mt-0.5 shrink-0"></span>
+                        <span><span class="text-slate-300 font-medium">Next step:</span> <span class="text-slate-400" x-text="a.action"></span></span>
+                      </div>
+                      <div class="mt-2.5 flex items-center gap-2 flex-wrap">
+                        <button @click="ackAlert(a.id)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium transition border border-white/10">Acknowledge</button>
+                        <button @click="investigate(a)" class="h-9 px-3 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-xs font-medium transition border border-emerald-400/20">Investigate</button>
+                        <span class="ml-auto text-[11px] text-slate-500 inline-flex items-center gap-1">
+                          <span class="w-1.5 h-1.5 rounded-full" :class="a.confidence==='high'?'bg-emerald-400':a.confidence==='med'?'bg-amber-400':'bg-slate-500'"></span>
+                          confidence: <span x-text="a.confidence"></span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div x-show="!activeAlerts().length" class="glass rounded-2xl p-8 text-center">
+                <div class="w-12 h-12 mx-auto rounded-2xl grid place-items-center bg-emerald-500/15 mb-3"><span x-html="icons.check" class="w-6 h-6 block text-emerald-400"></span></div>
+                <div class="font-semibold">Nothing needs you right now</div>
+                <div class="text-sm text-slate-400 mt-1">All rooms are steering as intended.</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold flex items-center gap-2"><span x-html="icons.eye" class="w-4 h-4 block text-slate-400"></span> Keeping an eye on</h3>
+            </div>
+            <div class="glass rounded-2xl divide-y divide-white/8">
+              <template x-for="w in watch" :key="w.id">
+                <div class="p-3.5 flex items-start gap-3">
+                  <span class="w-1.5 h-1.5 mt-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                  <div class="min-w-0">
+                    <div class="text-[13px] font-medium" x-text="w.title"></div>
+                    <div class="text-[11px] text-slate-400 mt-0.5" x-text="w.detail"></div>
+                  </div>
+                </div>
+              </template>
+              <div x-show="!watch.length" class="p-6 text-center text-sm text-slate-500">Nothing drifting.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ROOMS ============ -->
+      <section x-show="view==='rooms'" class="fade-enter space-y-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+          <template x-for="r in rooms" :key="'rv-'+r.id">
+            <button @click="openRoom(r.id)" class="text-left glass rounded-2xl p-4 lift hover:border-white/15"
+                    :class="r.status==='crit'?'ring-glow-crit':r.status==='warn'?'ring-glow-warn':''">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0"><div class="font-semibold truncate" x-text="r.name"></div>
+                  <div class="text-[11px] text-slate-400 truncate" x-text="r.stage+' · '+r.weekLabel"></div></div>
+                <span class="text-[10px] font-semibold px-2 py-1 rounded-full" :class="pillClass(r.status)" x-text="statusWord(r.status)"></span>
+              </div>
+              <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div><div class="text-lg font-bold" x-text="r.vpd.toFixed(2)"></div><div class="text-[10px] text-slate-500">VPD</div></div>
+                <div><div class="text-lg font-bold" x-text="r.temp.toFixed(1)+'°'"></div><div class="text-[10px] text-slate-500">Temp</div></div>
+                <div><div class="text-lg font-bold" x-text="Math.round(r.rh)+'%'"></div><div class="text-[10px] text-slate-500">RH</div></div>
+              </div>
+              <canvas :id="'rspark-'+r.id" width="240" height="48" class="mt-3 w-full"></canvas>
+            </button>
+          </template>
+        </div>
+      </section>
+
+      <!-- ============ BATCHES & HARVEST ============ -->
+      <section x-show="view==='batches'" class="fade-enter space-y-5">
+        <!-- trim session -->
+        <div class="glass-strong rounded-3xl p-5 md:p-6">
+          <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h3 class="font-semibold flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 pulse-dot text-red-500"></span> Active trim session</h3>
+            <span class="text-xs text-slate-400">Started <span x-text="ago(trim.startTs)"></span> ago</span>
+          </div>
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+              <div class="text-[11px] uppercase tracking-wider text-slate-400">Elapsed</div>
+              <div class="text-2xl font-bold mt-1" x-text="elapsed(trim.startTs)"></div>
+              <div class="text-[11px] text-slate-500 mt-1" x-text="trim.batch+' · '+trim.strain"></div>
+            </div>
+            <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+              <div class="text-[11px] uppercase tracking-wider text-slate-400">Processed</div>
+              <div class="text-2xl font-bold mt-1"><span x-text="trim.kg.toFixed(1)"></span><span class="text-sm text-slate-500"> / <span x-text="trim.target"></span> kg</span></div>
+              <div class="h-1.5 rounded-full bg-white/10 mt-2 overflow-hidden"><div class="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-700" :style="'width:'+Math.min(100,trim.kg/trim.target*100)+'%'"></div></div>
+            </div>
+            <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+              <div class="text-[11px] uppercase tracking-wider text-slate-400">Team · rate</div>
+              <div class="text-2xl font-bold mt-1" x-text="trim.team"></div>
+              <div class="text-[11px] text-slate-500 mt-1"><span x-text="trim.rate.toFixed(2)"></span> kg/hr/person</div>
+            </div>
+            <div class="flex flex-col gap-2 justify-center">
+              <button @click="logWeight()" class="h-11 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-400/30 text-emerald-300 text-sm font-semibold hover:bg-emerald-500/25 transition lift">+ Log weight</button>
+              <button @click="completeBatch()" class="h-11 rounded-xl bg-white/5 border border-white/10 text-sm font-medium hover:bg-white/10 transition">Complete → cure</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- batch table -->
+        <div class="glass rounded-2xl overflow-hidden">
+          <div class="flex items-center justify-between p-4 flex-wrap gap-2">
+            <h3 class="text-sm font-semibold flex items-center gap-2"><span x-html="icons.harvest" class="w-4 h-4 block text-emerald-400"></span> Batches</h3>
+            <div class="flex items-center gap-2">
+              <input x-model="batchFilter" placeholder="Filter strain / room…" class="text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2 w-44 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">
+            </div>
+          </div>
+          <div class="overflow-x-auto scrollx">
+            <table class="w-full text-sm min-w-[760px]">
+              <thead class="text-[11px] uppercase tracking-wider text-slate-400 border-y border-white/8 bg-white/[0.02]">
+                <tr>
+                  <template x-for="col in batchCols" :key="col.k">
+                    <th @click="sortBatches(col.k)" class="text-left font-medium px-4 py-2.5 cursor-pointer hover:text-slate-200 select-none whitespace-nowrap">
+                      <span x-text="col.label"></span>
+                      <span x-show="batchSort.k===col.k" x-text="batchSort.dir>0?'↑':'↓'" class="text-emerald-400"></span>
+                    </th>
+                  </template>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/6">
+                <template x-for="b in filteredBatches()" :key="b.id">
+                  <tr @click="batchModal=b" class="hover:bg-white/[0.03] cursor-pointer transition">
+                    <td class="px-4 py-3 font-mono text-xs text-emerald-300" x-text="b.id"></td>
+                    <td class="px-4 py-3 font-medium" x-text="b.strain"></td>
+                    <td class="px-4 py-3 text-slate-300" x-text="b.room"></td>
+                    <td class="px-4 py-3"><span class="text-[11px] px-2 py-0.5 rounded-full bg-white/8 text-slate-300" x-text="b.stage"></span></td>
+                    <td class="px-4 py-3 text-slate-400" x-text="b.harvest"></td>
+                    <td class="px-4 py-3"><span x-text="b.yield"></span><span class="text-slate-500 text-xs"> kg est</span></td>
+                    <td class="px-4 py-3 w-40">
+                      <div class="flex items-center gap-2">
+                        <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div class="h-full bg-emerald-500" :style="'width:'+b.progress+'%'"></div></div>
+                        <span class="text-[11px] text-slate-400" x-text="b.progress+'%'"></span>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ IRRIGATION / ENVIRONMENT ============ -->
+      <section x-show="view==='irrigation'" class="fade-enter space-y-5">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="glass rounded-2xl p-5">
+            <h3 class="text-sm font-semibold mb-4 flex items-center gap-2"><span x-html="icons.drop" class="w-4 h-4 block text-cyan-400"></span> Crop-steering zones</h3>
+            <div class="space-y-3">
+              <template x-for="z in zones" :key="z.id">
+                <div class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/8">
+                  <div class="min-w-0 flex-1">
+                    <div class="text-sm font-medium" x-text="z.name"></div>
+                    <div class="text-[11px] text-slate-400">Phase <span class="text-slate-200" x-text="z.phase"></span> · VWC <span x-text="z.vwc.toFixed(0)"></span>% · EC <span x-text="z.ec.toFixed(1)"></span> · target <span x-text="z.drybackTarget"></span>% dryback</div>
+                  </div>
+                  <button @click="z.auto=!z.auto;toast(z.name+(z.auto?' → Auto':' → Manual'))"
+                    class="relative w-12 h-7 rounded-full transition shrink-0" :class="z.auto?'bg-emerald-500':'bg-white/15'">
+                    <span class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform" :class="z.auto&&'translate-x-5'"></span>
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div class="glass rounded-2xl p-5">
+            <h3 class="text-sm font-semibold mb-4 flex items-center gap-2"><span x-html="icons.clock" class="w-4 h-4 block text-emerald-400"></span> Today's irrigation schedule</h3>
+            <div class="space-y-2">
+              <template x-for="s in schedule" :key="s.t">
+                <div class="flex items-center gap-3 p-2.5 rounded-lg" :class="s.done?'opacity-50':'bg-white/[0.03]'">
+                  <span class="text-xs font-mono text-slate-400 w-12" x-text="s.t"></span>
+                  <span class="w-2 h-2 rounded-full" :class="s.done?'bg-slate-600':'bg-emerald-400'"></span>
+                  <span class="text-sm" x-text="s.label"></span>
+                  <span class="ml-auto text-[11px] text-slate-500" x-text="s.zone"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ COMPLIANCE ============ -->
+      <section x-show="view==='compliance'" class="fade-enter space-y-5">
+        <div class="glass-strong rounded-3xl p-6 flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h3 class="font-semibold text-lg">Compliance & traceability</h3>
+            <p class="text-sm text-slate-400 mt-1">GMP batch records · seed-to-sale · audit-ready exports.</p>
+          </div>
+          <button @click="generateReport()" class="h-12 px-5 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-400/30 text-emerald-300 font-semibold hover:bg-emerald-500/25 transition lift flex items-center gap-2">
+            <span x-html="icons.doc" class="w-5 h-5 block"></span> Generate audit pack
+          </button>
+        </div>
+        <div class="glass rounded-2xl overflow-hidden">
+          <div class="p-4 text-sm font-semibold border-b border-white/8">Recent compliance logs</div>
+          <div class="divide-y divide-white/6">
+            <template x-for="l in logs" :key="l.id">
+              <div class="flex items-center gap-3 p-3.5">
+                <span class="w-8 h-8 rounded-lg grid place-items-center bg-white/5" x-html="icons[l.icon]||icons.doc"></span>
+                <div class="min-w-0 flex-1"><div class="text-sm" x-text="l.text"></div><div class="text-[11px] text-slate-500" x-text="l.who+' · '+l.when"></div></div>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">logged</span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ENERGY ============ -->
+      <section x-show="view==='energy'" class="fade-enter space-y-5">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <template x-for="e in energyKpis()" :key="e.label">
+            <div class="glass rounded-2xl p-4">
+              <div class="text-[11px] uppercase tracking-wider text-slate-400" x-text="e.label"></div>
+              <div class="text-2xl font-bold mt-1" x-text="e.value"></div>
+              <div class="text-[11px] text-slate-500 mt-1" x-text="e.sub"></div>
+            </div>
+          </template>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div class="xl:col-span-2 glass rounded-2xl p-5">
+            <h3 class="text-sm font-semibold mb-3 flex items-center gap-2"><span x-html="icons.power" class="w-4 h-4 block text-amber-400"></span> Facility power draw (24h)</h3>
+            <div class="h-64"><canvas id="powerChart"></canvas></div>
+          </div>
+          <div class="glass rounded-2xl p-5">
+            <h3 class="text-sm font-semibold mb-3">Optimisation tips</h3>
+            <div class="space-y-2.5">
+              <template x-for="t in energyTips" :key="t">
+                <div class="flex items-start gap-2.5 p-3 rounded-xl bg-white/[0.03] border border-white/8">
+                  <span x-html="icons.spark" class="w-4 h-4 block text-emerald-400 mt-0.5 shrink-0"></span>
+                  <span class="text-[13px] text-slate-300" x-text="t"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ALERTS (full) ============ -->
+      <section x-show="view==='alerts'" class="fade-enter space-y-3">
+        <template x-for="a in alerts" :key="'all-'+a.id">
+          <div class="glass rounded-2xl p-4" :class="a.acked?'opacity-50':a.sev==='crit'?'border-l-4 border-l-red-500':'border-l-4 border-l-amber-400'">
+            <div class="flex items-start gap-3">
+              <div class="w-9 h-9 rounded-xl grid place-items-center shrink-0" :class="sevBg(a.sev)"><span x-html="icons[a.icon]||icons.alert" class="w-4.5 h-4.5 block" :class="sevText(a.sev)"></span></div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 flex-wrap"><span class="text-sm font-semibold" x-text="a.title"></span><span class="text-[11px] text-slate-500" x-text="'· '+a.room+' · '+ago(a.ts)+' ago'"></span></div>
+                <p class="text-[13px] text-slate-400 mt-1" x-text="a.detail"></p>
+              </div>
+              <button x-show="!a.acked" @click="ackAlert(a.id)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs border border-white/10 shrink-0">Ack</button>
+              <span x-show="a.acked" class="text-[11px] text-emerald-400 shrink-0">✓ acked</span>
+            </div>
+          </div>
+        </template>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ===================== MOBILE BOTTOM NAV ===================== -->
+<nav class="md:hidden fixed bottom-0 inset-x-0 z-40 glass-strong border-t border-white/10" style="padding-bottom:env(safe-area-inset-bottom)">
+  <div class="grid grid-cols-5">
+    <template x-for="item in mobileNav" :key="item.id">
+      <button @click="item.id==='ai'?aiOpen=true:go(item.id)" class="flex flex-col items-center gap-1 py-2.5 transition relative"
+              :class="view===item.id?'text-emerald-400':'text-slate-400'">
+        <span x-html="icons[item.icon]" class="w-5.5 h-5.5 block"></span>
+        <span class="text-[10px] font-medium" x-text="item.label"></span>
+        <span x-show="item.id==='alerts' && unacked().length" class="absolute top-1.5 right-1/2 translate-x-3 w-4 h-4 grid place-items-center text-[9px] font-bold rounded-full bg-red-500 text-white" x-text="unacked().length"></span>
+      </button>
+    </template>
+  </div>
+</nav>
+
+<!-- mobile FAB AI -->
+<button @click="aiOpen=true" class="md:hidden fixed right-4 z-40 w-14 h-14 rounded-2xl grid place-items-center bg-gradient-to-br from-emerald-400 to-emerald-600 text-emerald-950 shadow-lg shadow-emerald-500/30 lift"
+        style="bottom:calc(72px + env(safe-area-inset-bottom))" aria-label="AI">
+  <span x-html="icons.ai" class="w-6 h-6 block"></span>
+</button>
+
+<!-- ===================== ROOM DETAIL (modal / bottom sheet) ===================== -->
+<div x-show="roomModal" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="roomModal=null">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="roomModal=null" x-transition.opacity></div>
+  <div class="absolute inset-x-0 bottom-0 md:inset-0 md:m-auto md:h-fit md:max-w-3xl md:rounded-3xl rounded-t-3xl glass-strong border-t md:border border-white/12 max-h-[92vh] overflow-y-auto scrollx"
+       x-transition:enter="transition duration-300" x-transition:enter-start="translate-y-full md:translate-y-4 md:opacity-0" x-transition:enter-end="translate-y-0 md:opacity-100">
+    <template x-if="roomModal">
+      <div x-data="{r:room(roomModal)}">
+        <div class="sticky top-0 glass-strong border-b border-white/8 p-5 flex items-start gap-3 z-10">
+          <div class="w-12 h-12 rounded-2xl grid place-items-center shrink-0" :class="sevBg(r.status)"><span x-html="icons.rooms" class="w-6 h-6 block" :class="sevText(r.status)"></span></div>
+          <div class="min-w-0 flex-1">
+            <div class="text-lg font-bold" x-text="r.name"></div>
+            <div class="text-xs text-slate-400" x-text="r.stage+' · '+r.weekLabel+' · '+r.strain+' · batch '+r.batch"></div>
+          </div>
+          <button @click="roomModal=null" class="w-9 h-9 rounded-lg grid place-items-center bg-white/5 hover:bg-white/10"><span x-html="icons.x" class="w-5 h-5 block"></span></button>
+        </div>
+        <div class="p-5 space-y-5">
+          <!-- plant truth -->
+          <div class="rounded-2xl p-4" :class="sevBg(r.status)">
+            <div class="text-sm font-semibold" :class="sevText(r.status)" x-text="r.plantTruth"></div>
+          </div>
+          <!-- big sensors -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <template x-for="m in roomMetrics(r)" :key="m.k">
+              <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-3.5">
+                <div class="text-[11px] uppercase tracking-wider text-slate-400" x-text="m.label"></div>
+                <div class="text-xl font-bold mt-1" :class="m.cls" x-text="m.val"></div>
+                <div class="text-[10px] text-slate-500" x-text="m.sub"></div>
+              </div>
+            </template>
+          </div>
+          <!-- setpoints vs actual -->
+          <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+            <div class="text-xs font-semibold text-slate-300 mb-3">Setpoint vs actual</div>
+            <div class="space-y-3">
+              <template x-for="s in setpointRows(r)" :key="s.label">
+                <div>
+                  <div class="flex justify-between text-[12px] mb-1"><span class="text-slate-400" x-text="s.label"></span>
+                    <span><span x-text="s.actual"></span> <span class="text-slate-600">/ target</span> <span class="text-slate-400" x-text="s.target"></span></span></div>
+                  <div class="h-1.5 rounded-full bg-white/10 relative overflow-hidden">
+                    <div class="absolute top-0 bottom-0 w-1 bg-emerald-400/70" :style="'left:'+s.targetPct+'%'"></div>
+                    <div class="h-full rounded-full" :class="s.devCls" :style="'width:'+s.actualPct+'%'"></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+          <!-- history chart -->
+          <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+            <div class="text-xs font-semibold text-slate-300 mb-2">24h history</div>
+            <div class="h-48"><canvas id="roomHistChart"></canvas></div>
+          </div>
+          <!-- notes -->
+          <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+            <div class="text-xs font-semibold text-slate-300 mb-2">Operator notes</div>
+            <textarea x-model="notes[r.id]" @input.debounce.600="saveNotes()" rows="3" placeholder="Log a manual check, observation…"
+              class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 resize-none"></textarea>
+            <div class="text-[10px] text-slate-500 mt-1" x-show="notesSaved">Saved to this device ✓</div>
+          </div>
+          <!-- quick actions -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button @click="logCheck(r)" class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition">Log check</button>
+            <button @click="adjustTarget(r)" class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition">Adjust target</button>
+            <button @click="simulateDrift(r)" class="h-11 rounded-xl bg-amber-400/15 border border-amber-400/25 text-amber-300 text-xs font-medium hover:bg-amber-400/25 transition">Simulate drift</button>
+            <button class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition flex items-center justify-center gap-1"><span x-html="icons.cam" class="w-4 h-4 block"></span> Camera</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- ===================== BATCH MODAL ===================== -->
+<div x-show="batchModal" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="batchModal=null">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="batchModal=null"></div>
+  <div class="absolute inset-x-0 bottom-0 md:inset-0 md:m-auto md:h-fit md:max-w-lg md:rounded-3xl rounded-t-3xl glass-strong border-white/12 max-h-[90vh] overflow-y-auto"
+       x-transition:enter="transition duration-300" x-transition:enter-start="translate-y-full md:opacity-0" x-transition:enter-end="translate-y-0 md:opacity-100">
+    <template x-if="batchModal">
+      <div class="p-5 space-y-4">
+        <div class="flex items-start justify-between">
+          <div><div class="font-mono text-xs text-emerald-300" x-text="batchModal.id"></div>
+            <div class="text-xl font-bold" x-text="batchModal.strain"></div>
+            <div class="text-xs text-slate-400" x-text="batchModal.room+' · '+batchModal.stage"></div></div>
+          <button @click="batchModal=null" class="w-9 h-9 rounded-lg grid place-items-center bg-white/5 hover:bg-white/10"><span x-html="icons.x" class="w-5 h-5 block"></span></button>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-xl bg-white/[0.03] border border-white/8 p-3"><div class="text-[11px] text-slate-400">Est. harvest</div><div class="font-semibold" x-text="batchModal.harvest"></div></div>
+          <div class="rounded-xl bg-white/[0.03] border border-white/8 p-3"><div class="text-[11px] text-slate-400">Est. yield</div><div class="font-semibold" x-text="batchModal.yield+' kg'"></div></div>
+          <div class="rounded-xl bg-white/[0.03] border border-white/8 p-3"><div class="text-[11px] text-slate-400">Plants</div><div class="font-semibold" x-text="batchModal.plants"></div></div>
+          <div class="rounded-xl bg-white/[0.03] border border-white/8 p-3"><div class="text-[11px] text-slate-400">Progress</div><div class="font-semibold" x-text="batchModal.progress+'%'"></div></div>
+        </div>
+        <div class="rounded-xl bg-white/[0.03] border border-white/8 p-3 text-[13px] text-slate-300">
+          <span class="text-emerald-400 font-medium">AI readiness:</span> <span x-text="batchModal.readiness"></span>
+        </div>
+        <button @click="batchModal=null" class="w-full h-11 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-400/30 text-emerald-300 font-medium">Close</button>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- ===================== AI CO-PILOT ===================== -->
+<div x-show="aiOpen" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="aiOpen=false">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="aiOpen=false"></div>
+  <div class="absolute right-0 top-0 h-full w-full sm:max-w-md glass-strong border-l border-white/12 flex flex-col"
+       x-transition:enter="transition duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0">
+    <div class="p-4 border-b border-white/8 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl grid place-items-center bg-emerald-500/15 ring-1 ring-emerald-400/30"><span x-html="icons.ai" class="w-5 h-5 block text-emerald-400"></span></div>
+      <div class="flex-1"><div class="font-semibold text-sm">Plant-State AI</div><div class="text-[11px] text-slate-400">co-pilot · facility context loaded</div></div>
+      <button @click="aiOpen=false" class="w-9 h-9 rounded-lg grid place-items-center bg-white/5 hover:bg-white/10"><span x-html="icons.x" class="w-5 h-5 block"></span></button>
+    </div>
+    <div class="flex-1 overflow-y-auto scrollx p-4 space-y-3" id="aiScroll">
+      <template x-for="(m,i) in aiMessages" :key="i">
+        <div :class="m.role==='user'?'flex justify-end':'flex justify-start'">
+          <div class="max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-line"
+               :class="m.role==='user'?'bg-emerald-500/20 text-emerald-50 rounded-br-sm':'bg-white/[0.05] border border-white/8 text-slate-200 rounded-bl-sm'"
+               x-text="m.text"></div>
+        </div>
+      </template>
+      <div x-show="aiThinking" class="flex gap-1 px-2"><span class="w-2 h-2 rounded-full bg-slate-500 animate-bounce"></span><span class="w-2 h-2 rounded-full bg-slate-500 animate-bounce" style="animation-delay:.15s"></span><span class="w-2 h-2 rounded-full bg-slate-500 animate-bounce" style="animation-delay:.3s"></span></div>
+    </div>
+    <div class="p-3 border-t border-white/8">
+      <div class="flex gap-1.5 mb-2 overflow-x-auto scrollx pb-1">
+        <template x-for="s in aiSuggestions" :key="s">
+          <button @click="askAI(s)" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-slate-300 hover:border-emerald-400/30 transition" x-text="s"></button>
+        </template>
+      </div>
+      <form @submit.prevent="askAI(aiInput)" class="flex gap-2">
+        <input x-model="aiInput" placeholder="Ask about any room, batch, or anomaly…" class="flex-1 h-11 bg-white/5 border border-white/10 rounded-xl px-3.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">
+        <button type="submit" class="w-11 h-11 rounded-xl bg-emerald-500 text-emerald-950 grid place-items-center hover:bg-emerald-400 transition"><span x-html="icons.send" class="w-5 h-5 block"></span></button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== COMMAND PALETTE ===================== -->
+<div x-show="cmdOpen" x-cloak class="fixed inset-0 z-[60]" @keydown.escape.window="cmdOpen=false">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="cmdOpen=false"></div>
+  <div class="absolute top-[12vh] inset-x-4 md:inset-x-0 md:mx-auto md:max-w-xl glass-strong rounded-2xl border border-white/12 overflow-hidden"
+       x-transition:enter="transition duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+    <div class="flex items-center gap-2 px-4 border-b border-white/8">
+      <span x-html="icons.search" class="w-4 h-4 block text-slate-400"></span>
+      <input x-model="cmdQuery" x-ref="cmd" placeholder="Search rooms, batches, actions — or ask AI…" class="flex-1 h-12 bg-transparent text-sm focus:outline-none">
+      <kbd class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 border border-white/10">esc</kbd>
+    </div>
+    <div class="max-h-80 overflow-y-auto scrollx p-2">
+      <template x-for="c in cmdResults()" :key="c.id">
+        <button @click="runCmd(c)" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 text-left transition">
+          <span x-html="icons[c.icon]" class="w-4 h-4 block text-slate-400 shrink-0"></span>
+          <span class="text-sm" x-text="c.label"></span>
+          <span class="ml-auto text-[10px] text-slate-500" x-text="c.kind"></span>
+        </button>
+      </template>
+      <div x-show="cmdQuery && !cmdResults().length" class="px-3 py-6 text-center text-sm text-slate-500">No matches. Press Enter to ask AI.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TOASTS ===================== -->
+<div class="fixed bottom-24 md:bottom-6 right-4 z-[70] space-y-2">
+  <template x-for="t in toasts" :key="t.id">
+    <div class="glass-strong rounded-xl px-4 py-3 text-sm border border-emerald-400/20 flex items-center gap-2 fade-enter shadow-lg">
+      <span x-html="icons.check" class="w-4 h-4 block text-emerald-400"></span><span x-text="t.msg"></span>
+    </div>
+  </template>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    /* ---------- icons (Lucide-style inline SVG) ---------- */
+    icons: {
+      leaf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>`,
+      dashboard:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>`,
+      rooms:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>`,
+      harvest:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></svg>`,
+      alerts:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M21 19H3a2 2 0 0 0 .9-3.7C5 14.5 5 12 5 10a7 7 0 0 1 14 0c0 2 0 4.5 1.1 5.3A2 2 0 0 1 21 19Z"/></svg>`,
+      bell:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M21 19H3a2 2 0 0 0 .9-3.7C5 14.5 5 12 5 10a7 7 0 0 1 14 0c0 2 0 4.5 1.1 5.3A2 2 0 0 1 21 19Z"/></svg>`,
+      power:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+      drop:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>`,
+      sun:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></svg>`,
+      wind:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 19.6A2 2 0 1 0 14 16H2M17.5 8a2.5 2.5 0 1 1 2 4H2M9.8 4.4A2 2 0 1 1 11 8H2"/></svg>`,
+      salt:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l14 10M19 7 5 17"/></svg>`,
+      activity:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+      ai:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1H1a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 12 2Z"/><circle cx="8.5" cy="14.5" r="1"/><circle cx="15.5" cy="14.5" r="1"/></svg>`,
+      eye:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`,
+      alert:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>`,
+      check:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
+      x:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
+      search:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
+      up:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7M12 19V5"/></svg>`,
+      down:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>`,
+      arrow:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`,
+      doc:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>`,
+      spark:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>`,
+      clock:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
+      cam:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`,
+      send:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>`,
+      more:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>`,
+      collapse:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`,
+      expand:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`,
+      gauge:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4M3.34 19a10 10 0 1 1 17.32 0"/></svg>`,
+      thermo:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>`,
+      target:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>`,
+    },
+
+    /* ---------- navigation ---------- */
+    view:'dashboard', sidebarOpen:true,
+    nav:[
+      {id:'dashboard',label:'Dashboard',icon:'dashboard'},
+      {id:'rooms',label:'Rooms & Zones',icon:'rooms'},
+      {id:'batches',label:'Batches & Harvest',icon:'harvest'},
+      {id:'irrigation',label:'Irrigation & Environment',icon:'drop'},
+      {id:'energy',label:'Energy & Resources',icon:'power'},
+      {id:'compliance',label:'Compliance & Reports',icon:'doc'},
+      {id:'alerts',label:'Alerts',icon:'bell',badge(){return Alpine.store?0:0}},
+    ],
+    mobileNav:[
+      {id:'dashboard',label:'Home',icon:'dashboard'},
+      {id:'rooms',label:'Rooms',icon:'rooms'},
+      {id:'batches',label:'Harvest',icon:'harvest'},
+      {id:'alerts',label:'Alerts',icon:'alerts'},
+      {id:'ai',label:'AI',icon:'ai'},
+    ],
+
+    /* ---------- live state ---------- */
+    now:Date.now(), lastUpdated:Date.now(),
+    cmdOpen:false, cmdQuery:'', aiOpen:false, aiInput:'', aiThinking:false,
+    roomModal:null, batchModal:null,
+    trendRoom:'flower-a', trendRange:'24h',
+    batchFilter:'', batchSort:{k:'harvest',dir:1},
+    notes:{}, notesSaved:false, toasts:[], _charts:{}, _tid:0,
+
+    /* ---------- seed data (real F2 / Athena-informed) ---------- */
+    rooms:[
+      {id:'veg', name:'Veg 1', stage:'Vegetative', week:2, strain:'Gelato #41', batch:'LA-2604', lightsOn:true,
+        vpd:1.02, temp:25.1, rh:64, ppfd:430, co2:900, ec:2.6, vwc:58, dryback:8, drybackTarget:12, cwsi:0.12, phase:'P2', status:'optimal', spark:[]},
+      {id:'flower-a', name:'Flower A', stage:'Early flower', week:3, strain:'Wedding Cake', batch:'LA-2588', lightsOn:true,
+        vpd:1.18, temp:26.0, rh:60, ppfd:910, co2:1290, ec:4.1, vwc:52, dryback:14, drybackTarget:15, cwsi:0.22, phase:'P2', status:'optimal', spark:[]},
+      {id:'flower-b', name:'Flower B', stage:'Bulk', week:6, strain:'MAC 1', batch:'LA-2571', lightsOn:true,
+        vpd:1.46, temp:27.3, rh:55, ppfd:1010, co2:1240, ec:5.0, vwc:49, dryback:6, drybackTarget:15, cwsi:0.41, phase:'P2', status:'warn', spark:[],
+        hotspot:true},
+      {id:'flower-c', name:'Flower C', stage:'Finish / flush', week:10, strain:'Runtz', batch:'LA-2540', lightsOn:true,
+        vpd:1.21, temp:25.5, rh:58, ppfd:860, co2:1180, ec:2.2, vwc:47, dryback:18, drybackTarget:20, cwsi:0.28, phase:'P3', status:'optimal', spark:[]},
+      {id:'dry', name:'Dry / Cure', stage:'Dry room', week:0, strain:'Mixed lot', batch:'LA-2533', lightsOn:false,
+        vpd:0.82, temp:18.2, rh:60, ppfd:0, co2:600, ec:0, vwc:0, dryback:0, drybackTarget:0, cwsi:0, phase:'—', status:'optimal', spark:[], dryRoom:true},
+      {id:'mother', name:'Mother / Clone', stage:'Stock', week:0, strain:'Library', batch:'—', lightsOn:true,
+        vpd:0.95, temp:24.2, rh:68, ppfd:280, co2:800, ec:1.8, vwc:62, dryback:5, drybackTarget:8, cwsi:0.08, phase:'P1', status:'optimal', spark:[]},
+    ],
+    batches:[
+      {id:'LA-2571', strain:'MAC 1', room:'Flower B', stage:'Bulk wk6', harvest:'2026-06-28', yield:18.4, plants:108, progress:62, readiness:'Trichome modeling projects 28–30% cloudy by Jun 26; hold flush start to Jun 21.'},
+      {id:'LA-2588', strain:'Wedding Cake', room:'Flower A', stage:'Early wk3', harvest:'2026-07-18', yield:21.0, plants:108, progress:31, readiness:'On a healthy stacking curve, tracking last cycle +4%. No action.'},
+      {id:'LA-2540', strain:'Runtz', room:'Flower C', stage:'Flush wk10', harvest:'2026-06-09', yield:16.2, plants:96, progress:91, readiness:'Ready window opens in ~3 days. Schedule trim team for Jun 8.'},
+      {id:'LA-2604', strain:'Gelato #41', room:'Veg 1', stage:'Veg wk2', harvest:'2026-08-05', yield:0, plants:120, progress:14, readiness:'Vegetative — flip target Jun 18 once canopy fills.'},
+      {id:'LA-2533', strain:'Mixed lot', room:'Dry / Cure', stage:'Drying d4', harvest:'curing', yield:15.1, plants:0, progress:78, readiness:'Water activity trending to 0.62; target cure burp schedule daily.'},
+    ],
+    alerts:[], watch:[], insights:[],
+    zones:[
+      {id:1,name:'Flower B · Zone 1',phase:'P2',vwc:49,ec:5.0,drybackTarget:15,auto:true},
+      {id:2,name:'Flower B · Zone 2',phase:'P2',vwc:47,ec:5.2,drybackTarget:18,auto:true},
+      {id:3,name:'Flower A · Zone 1',phase:'P2',vwc:52,ec:4.1,drybackTarget:15,auto:true},
+      {id:4,name:'Veg 1 · Zone 1',phase:'P2',vwc:58,ec:2.6,drybackTarget:12,auto:false},
+    ],
+    schedule:[
+      {t:'06:00',label:'P1 ramp — first shot',zone:'all flower',done:true},
+      {t:'08:30',label:'P2 maintenance',zone:'Flower A/B',done:true},
+      {t:'11:00',label:'P2 maintenance',zone:'Flower A/B',done:true},
+      {t:'14:00',label:'P2 EC-stack shot',zone:'Flower B',done:false},
+      {t:'17:30',label:'Last shot — P3 dryback',zone:'all flower',done:false},
+    ],
+    logs:[
+      {id:1,icon:'doc',text:'Batch LA-2540 moved Flower C → flush protocol',who:'C. Ngata',when:'today 09:14'},
+      {id:2,icon:'drop',text:'Nutrient tank A reconstituted, EC 3.0 / pH 5.9',who:'auto-dosing',when:'today 07:02'},
+      {id:3,icon:'harvest',text:'Trim session opened — LA-2533 Mixed lot',who:'B. Disdale',when:'today 08:30'},
+      {id:4,icon:'check',text:'Daily GMP room checks completed (6/6 rooms)',who:'P. Stewart',when:'today 06:45'},
+    ],
+    energyTips:[
+      'Flower B drawing 4.1 kW — shift 30% of dehumidification to the off-peak window after 22:00 to cut ~$180/wk.',
+      'Veg 1 PPFD headroom: dimming to 380 µmol saves ~0.4 kW with no growth penalty at wk2.',
+      'Facility power factor 0.94 — within target; no correction needed.',
+    ],
+    trim:{batch:'LA-2533', strain:'Mixed lot', startTs:Date.now()-1000*60*138, kg:9.4, target:15.1, team:'3 trimmers', rate:1.36},
+    aiMessages:[], aiSuggestions:['Why is Flower B stressed?','Predict next harvest','Where is power going?','Any rooms drifting?'],
+
+    /* ---------- init ---------- */
+    init(){
+      this.rooms.forEach(r=>{ r.spark = Array.from({length:24},(_,i)=> r.vpd + Math.sin(i/3)*0.06 + (Math.random()-.5)*0.04); });
+      this.recompute();
+      this.aiMessages=[{role:'ai',text:'Facility context loaded — 6 rooms, 5 active batches. Ask me anything, or tap a suggestion. I read every sensor and every batch so you don\'t have to.'}];
+      this.$nextTick(()=>{ this.mountCharts(); });
+      this.$watch('view',()=> this.$nextTick(()=>this.mountCharts()));
+      this.$watch('roomModal',v=>{ if(v) this.$nextTick(()=>this.mountRoomHist(v)); });
+      this.$watch('cmdOpen',v=>{ if(v) this.$nextTick(()=>this.$refs.cmd&&this.$refs.cmd.focus()); });
+      try{ this.notes = JSON.parse(localStorage.getItem('la.notes'))||{}; }catch(e){}
+      this._tid = setInterval(()=>this.tick(), 6000);
+    },
+
+    /* ---------- live tick ---------- */
+    tick(){
+      const j=(v,a)=> v + (Math.random()-.5)*a;
+      this.rooms.forEach(r=>{
+        if(r.dryRoom){ r.temp=j(r.temp,.15); r.rh=Math.max(55,Math.min(64,j(r.rh,.6))); r.vpd=+(((1-r.rh/100)*0.95)).toFixed(2); }
+        else {
+          r.temp=+j(r.temp,.12).toFixed(1);
+          r.rh=Math.max(45,Math.min(72,j(r.rh,.7)));
+          if(r.lightsOn) r.ppfd=Math.max(0,Math.round(j(r.ppfd,12)));
+          r.co2=Math.round(j(r.co2,18));
+          r.ec=+Math.max(0,j(r.ec,.04)).toFixed(2);
+          // VPD derived loosely from temp/rh for realism
+          const svp=0.61078*Math.exp(17.27*r.temp/(r.temp+237.3));
+          r.vpd=+Math.max(0.4,(svp*(1-r.rh/100))).toFixed(2);
+          r.cwsi=+Math.max(0,Math.min(1, r.cwsi + (r.vpd>1.5?0.01:-0.008) + (Math.random()-.5)*0.01)).toFixed(2);
+        }
+        r.spark.push(r.vpd); if(r.spark.length>24) r.spark.shift();
+      });
+      this.recompute();
+      // trim drift
+      if(this.trim.kg < this.trim.target) this.trim.kg = +Math.min(this.trim.target, this.trim.kg + Math.random()*0.12).toFixed(2);
+      this.lastUpdated=Date.now(); this.now=Date.now();
+      this.updateCharts();
+    },
+
+    /* ---------- inference: status + advisories + watchlist ---------- */
+    recompute(){
+      const alerts=[], watch=[], insights=[];
+      this.rooms.forEach(r=>{
+        let sev='optimal'; const reasons=[];
+        if(!r.dryRoom){
+          if(r.vpd>1.55){ sev=worse(sev,'warn'); }
+          if(r.cwsi>=0.5){ sev=worse(sev,'warn'); }
+          if(r.cwsi>=0.7){ sev=worse(sev,'crit'); }
+          if(r.lightsOn && r.ppfd>0 && r.ppfd<700 && r.stage!=='Vegetative' && r.id!=='mother'){ sev=worse(sev,'warn'); }
+        }
+        // hotspot advisory (real F2 pattern)
+        if(r.hotspot){
+          sev=worse(sev,'warn');
+          alerts.push(adv('crit'==sev?'crit':'warn','fire',r.name,'Back-left corner running hot',
+            `${r.name} back-left is ~2.6 °C over room average and VPD is ${r.vpd.toFixed(2)} kPa — uneven transpiration, those plants stress first.`,
+            'Check AC throw and add a circulation fan to the back-left corner. Re-check Δ in 30 min.','high'));
+        }
+        if(!r.dryRoom && r.vpd>1.55){
+          alerts.push(adv('warn','wind',r.name,'VPD above the bulk band',
+            `${r.name} VPD is ${r.vpd.toFixed(2)} kPa, over the 1.0–1.4 target. Sustained, this closes stomata and slows stacking.`,
+            'Raise RH 4–6% or trim leaf-zone airflow. Aim VPD back to ~1.2 kPa.','high'));
+        }
+        if(!r.dryRoom && r.drybackTarget>0 && r.dryback < r.drybackTarget*0.6){
+          watch.push({id:'db-'+r.id,title:`${r.name}: shallow dryback`,detail:`Dryback ${r.dryback}% vs ${r.drybackTarget}% target — substrate staying wet, EC will converge slowly.`});
+        }
+        if(!r.dryRoom && r.id==='flower-c' && r.ec<2.5){
+          watch.push({id:'ec-'+r.id,title:`${r.name}: EC low (flush)`,detail:`Pore EC ${r.ec.toFixed(1)} — expected during flush. On track for finish.`});
+        }
+        r.status = sev;
+        r.weekLabel = r.dryRoom?'day 4':(r.id==='mother'?'stock':'wk '+r.week);
+        r.plantTruth = this.truth(r);
+      });
+      // facility-level AI insights
+      const hot = this.rooms.find(r=>r.hotspot);
+      if(hot) insights.push({id:'i1',sev:'warn',title:`${hot.name}: corner hotspot likely AC throw`,
+        summary:`VPD ${hot.vpd.toFixed(2)} kPa with a 2.6 °C corner gradient. Root cause: airflow not reaching back-left. Fix airflow before adjusting climate setpoints.`,
+        body:`I correlated the back-left sensor against room average over 6 h. The gradient is persistent and tracks lights-on, not outside weather — that points to internal airflow, not the chiller. Adjusting the room RH setpoint would over-humidify the other 80% of canopy. Recommend a circulation fan aimed at the back-left corner and re-evaluate.`});
+      insights.push({id:'i2',sev:'ok',title:'Harvest readiness — LA-2540 Runtz',
+        summary:'Flower C flush wk10. Trichome + dryback model says ready window opens in ~3 days. Book the trim team for Jun 8.',
+        body:'Runtz in Flower C is at 91% of its modeled cycle. Dryback has widened to 18% and EC has dropped to flush levels. Projected peak-ripeness window: Jun 8–11. Recommend scheduling the trim team for the morning of Jun 8.'});
+      insights.push({id:'i3',sev:'ok',title:'Flower A stacking +4% vs last cycle',
+        summary:'Wedding Cake tracking ahead of the prior run at the same node count. Hold current steering.',
+        body:'Comparing canopy height and internode spacing to batch LA-2511 at the same week, Flower A is ~4% ahead. Current generative steering is working — no changes recommended.'});
+
+      // keep acked alerts, merge new (dedupe by title+room)
+      const keep = this.alerts.filter(a=>a.acked);
+      const seen = new Set(keep.map(a=>a.room+'|'+a.title));
+      alerts.forEach(a=>{ if(!seen.has(a.room+'|'+a.title)){ keep.push(a); seen.add(a.room+'|'+a.title); }});
+      this.alerts = keep;
+      this.watch = watch;
+      this.insights = insights;
+    },
+    truth(r){
+      if(r.dryRoom) return `Dry room steady — ${r.temp.toFixed(1)} °C / ${Math.round(r.rh)}% RH, VPD ${r.vpd.toFixed(2)}. Good slow dry.`;
+      if(r.status==='crit') return `${r.name} is stressed and needs action now — see advisories.`;
+      if(r.status==='warn') return `${r.name} is drifting out of band. One thing to sort out below.`;
+      return `${r.name} on track — transpiring normally, climate in band, steering ${r.phase}.`;
+    },
+
+    /* ---------- computed ---------- */
+    facilityStatus(){
+      const crit=this.rooms.filter(r=>r.status==='crit').length;
+      const warn=this.rooms.filter(r=>r.status==='warn').length;
+      if(crit) return {sev:'crit',big:`${crit} room${crit>1?'s':''} need action now`,line:'Urgent advisories below — act before it reaches the plant.'};
+      if(warn) return {sev:'warn',big:`${warn} room${warn>1?'s':''} to sort out`,line:this.rooms.filter(r=>r.status==='warn').map(r=>r.name).join(', ')+' drifting out of band.'};
+      return {sev:'ok',big:'All rooms on track',line:'6 rooms steering as intended. Nothing needs you — the AI is watching the leading indicators.'};
+    },
+    kpis(){
+      const power=this.rooms.reduce((s,r)=> s + (r.lightsOn?2.1:0.5) + r.ppfd/900, 1.2);
+      const avgVpd=this.rooms.filter(r=>!r.dryRoom).reduce((s,r)=>s+r.vpd,0)/5;
+      const canopyUtil=86;
+      return [
+        {label:'Facility',value:this.facilityStatus().sev==='ok'?'Healthy':this.facilityStatus().sev==='warn'?'Attention':'Critical',icon:'leaf',
+          tint:this.facilityStatus().sev==='ok'?'text-emerald-400':this.facilityStatus().sev==='warn'?'text-amber-400':'text-red-400',
+          sub:this.rooms.filter(r=>r.status!=='optimal').length+' rooms flagged'},
+        {label:'Active canopy',value:'312',unit:'m²',icon:'rooms',sub:canopyUtil+'% utilised',trendUp:true},
+        {label:'Live power',value:power.toFixed(1),unit:'kW',icon:'power',tint:'text-amber-400',sub:'−6% vs yesterday',trendDown:true},
+        {label:'Next harvest',value:'3d',icon:'harvest',tint:'text-emerald-400',sub:'LA-2540 · ~16.2 kg'},
+        {label:'Avg VPD',value:avgVpd.toFixed(2),unit:'kPa',icon:'wind',tint:avgVpd>1.4?'text-amber-400':'text-emerald-400',sub:avgVpd>1.4?'above band':'in band'},
+        {label:'Open tasks',value:this.activeAlerts().length,icon:'alerts',tint:this.activeAlerts().length?'text-amber-400':'text-emerald-400',sub:'high priority'},
+      ];
+    },
+    activeAlerts(){ return this.alerts.filter(a=>!a.acked).sort((a,b)=> (a.sev==='crit'?0:1)-(b.sev==='crit'?0:1)); },
+    unacked(){ return this.alerts.filter(a=>!a.acked); },
+    energyKpis(){
+      const p=this.rooms.reduce((s,r)=> s + (r.lightsOn?2.1:0.5) + r.ppfd/900,1.2);
+      return [
+        {label:'Live draw',value:p.toFixed(1)+' kW',sub:'whole facility'},
+        {label:'Today',value:(p*13.4).toFixed(0)+' kWh',sub:'≈ $'+(p*13.4*0.28).toFixed(0)+' @ $0.28'},
+        {label:'Lighting',value:'58%',sub:'of total load'},
+        {label:'Power factor',value:'0.94',sub:'within target'},
+      ];
+    },
+
+    /* ---------- room detail helpers ---------- */
+    room(id){ return this.rooms.find(r=>r.id===id); },
+    roomMetrics(r){
+      const b=(x,lo,hi)=> x<lo||x>hi?'text-amber-400':'text-emerald-400';
+      const out=[
+        {k:'vpd',label:'VPD',val:r.vpd.toFixed(2)+' kPa',sub:'target 1.0–1.4',cls:b(r.vpd,1.0,1.45)},
+        {k:'temp',label:'Temp',val:r.temp.toFixed(1)+' °C',sub:'target 24–26',cls:b(r.temp,24,26.5)},
+        {k:'rh',label:'RH',val:Math.round(r.rh)+' %',sub:'target 58–65',cls:b(r.rh,55,66)},
+        {k:'cwsi',label:'Plant stress',val:r.cwsi.toFixed(2),sub:'CWSI · <0.3 good',cls:b(r.cwsi,-1,0.4)},
+      ];
+      if(!r.dryRoom){
+        out.push({k:'ppfd',label:'PPFD',val:r.lightsOn?Math.round(r.ppfd):'dark',sub:'µmol/m²/s',cls:'text-slate-200'});
+        out.push({k:'co2',label:'CO₂',val:Math.round(r.co2),sub:'ppm',cls:b(r.co2,1100,1500)});
+        out.push({k:'ec',label:'Pore EC',val:r.ec.toFixed(1),sub:'mS/cm',cls:'text-slate-200'});
+        out.push({k:'db',label:'Dryback',val:r.dryback+'%',sub:'target '+r.drybackTarget+'%',cls:b(r.dryback,r.drybackTarget*0.6,99)});
+      }
+      return out;
+    },
+    setpointRows(r){
+      const mk=(label,actual,target,lo,hi)=>{
+        const span=hi-lo; const ap=Math.max(0,Math.min(100,(actual-lo)/span*100)); const tp=Math.max(0,Math.min(100,(target-lo)/span*100));
+        const dev=Math.abs(actual-target)/(span)>0.18; return {label,actual:typeof actual==='number'?actual.toFixed(1):actual,target,actualPct:ap,targetPct:tp,devCls:dev?'bg-amber-400':'bg-emerald-500'};
+      };
+      if(r.dryRoom) return [mk('Temp °C',r.temp,18,12,24),mk('RH %',r.rh,60,45,72)];
+      return [mk('Temp °C',r.temp,25,20,30),mk('RH %',r.rh,r.stage==='Bulk'?58:62,45,75),mk('VPD kPa',r.vpd,1.2,0.6,2.0),mk('Pore EC',r.ec,6.0,0,8)];
+    },
+    vpdJudge(r){ return r.vpd>1.5?'too dry':r.vpd<0.9?'too humid':'in band'; },
+
+    /* ---------- charts ---------- */
+    chartBase(){ return {responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:600},
+      plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}; },
+    spark(id,data,color){
+      const c=document.getElementById(id); if(!c) return;
+      if(this._charts[id]) this._charts[id].destroy();
+      this._charts[id]=new Chart(c,{type:'line',data:{labels:data.map((_,i)=>i),datasets:[{data,borderColor:color,borderWidth:2,fill:true,
+        backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,48);g.addColorStop(0,color+'40');g.addColorStop(1,color+'00');return g;},
+        tension:.4,pointRadius:0}]},options:this.chartBase()});
+    },
+    mountCharts(){
+      const col=(s)=> s==='crit'?'#f87171':s==='warn'?'#fbbf24':'#34d399';
+      if(this.view==='dashboard'||this.view==='rooms'){
+        this.rooms.forEach(r=>{ this.spark((this.view==='dashboard'?'dspark-':'rspark-')+r.id, r.spark, col(r.status)); });
+      }
+      if(this.view==='dashboard') this.rebuildEnv();
+      if(this.view==='energy') this.mountPower();
+    },
+    updateCharts(){
+      const col=(s)=> s==='crit'?'#f87171':s==='warn'?'#fbbf24':'#34d399';
+      this.rooms.forEach(r=>{ ['dspark-','rspark-'].forEach(pre=>{ const ch=this._charts[pre+r.id]; if(ch){ ch.data.datasets[0].data=[...r.spark]; ch.data.datasets[0].borderColor=col(r.status); ch.update('none'); }}); });
+      const env=this._charts['envChart']; if(env && this.view==='dashboard'){ const r=this.room(this.trendRoom); if(r){ env.data.datasets[0].data.push(r.temp); env.data.datasets[1].data.push(r.rh/3); env.data.datasets[2].data.push(r.vpd*15); [0,1,2].forEach(i=>{if(env.data.datasets[i].data.length>40)env.data.datasets[i].data.shift();}); env.data.labels.push(''); if(env.data.labels.length>40)env.data.labels.shift(); env.update('none'); }}
+    },
+    rebuildEnv(){
+      const c=document.getElementById('envChart'); if(!c) return;
+      if(this._charts['envChart']) this._charts['envChart'].destroy();
+      const r=this.room(this.trendRoom)||this.rooms[1];
+      const n = this.trendRange==='6h'?24:this.trendRange==='24h'?40:48;
+      const temp=[],rh=[],vpd=[],labels=[];
+      for(let i=0;i<n;i++){ const t=25+Math.sin(i/4)*1.4+(Math.random()-.5)*.4; temp.push(+t.toFixed(1)); rh.push(+((60+Math.cos(i/5)*5)/3).toFixed(1)); vpd.push(+((1.15+Math.sin(i/4)*0.25)*15).toFixed(1)); labels.push(''); }
+      const ds=(label,data,color)=>({label,data,borderColor:color,backgroundColor:color+'18',borderWidth:2,tension:.4,pointRadius:0,fill:false});
+      this._charts['envChart']=new Chart(c,{type:'line',
+        data:{labels,datasets:[ds('Temp °C',temp,'#34d399'),ds('RH (÷3)',rh,'#22d3ee'),ds('VPD ×15',vpd,'#fbbf24')]},
+        options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:500},interaction:{mode:'index',intersect:false},
+          plugins:{legend:{display:true,labels:{color:'#94a3b8',boxWidth:10,boxHeight:10,usePointStyle:true,font:{size:11}}},
+            tooltip:{backgroundColor:'#11161d',borderColor:'#243',borderWidth:1}},
+          scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#64748b',font:{size:10}}}}}});
+    },
+    mountPower(){
+      const c=document.getElementById('powerChart'); if(!c) return;
+      if(this._charts['powerChart']) this._charts['powerChart'].destroy();
+      const data=[],labels=[]; for(let i=0;i<48;i++){ const h=(i/2); const day=h>=10&&h<22; data.push(+(day?6.5+Math.random()*1.2:2.4+Math.random()*0.6).toFixed(1)); labels.push(''); }
+      this._charts['powerChart']=new Chart(c,{type:'bar',data:{labels,datasets:[{data,backgroundColor:data.map(v=>v>5?'#fbbf24aa':'#34d39988'),borderRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:500},plugins:{legend:{display:false}},
+          scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#64748b',font:{size:10},callback:v=>v+' kW'}}}}});
+    },
+    mountRoomHist(id){
+      const c=document.getElementById('roomHistChart'); if(!c) return;
+      if(this._charts['roomHistChart']) this._charts['roomHistChart'].destroy();
+      const r=this.room(id); const vpd=[],labels=[]; for(let i=0;i<48;i++){ vpd.push(+(r.vpd+Math.sin(i/5)*0.12+(Math.random()-.5)*0.05).toFixed(2)); labels.push(''); }
+      this._charts['roomHistChart']=new Chart(c,{type:'line',data:{labels,datasets:[{label:'VPD',data:vpd,borderColor:'#34d399',backgroundColor:'#34d39915',borderWidth:2,tension:.4,pointRadius:0,fill:true}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:400},plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#64748b',font:{size:10}}}}}});
+    },
+
+    /* ---------- batches ---------- */
+    batchCols:[{k:'id',label:'Batch'},{k:'strain',label:'Strain'},{k:'room',label:'Room'},{k:'stage',label:'Stage'},{k:'harvest',label:'Harvest'},{k:'yield',label:'Yield'},{k:'progress',label:'Progress'}],
+    filteredBatches(){
+      let b=[...this.batches];
+      const q=this.batchFilter.toLowerCase().trim();
+      if(q) b=b.filter(x=>(x.strain+x.room+x.id+x.stage).toLowerCase().includes(q));
+      const k=this.batchSort.k,d=this.batchSort.dir;
+      b.sort((x,y)=>{ let a=x[k],c=y[k]; if(typeof a==='string'){return a.localeCompare(c)*d;} return (a-c)*d; });
+      return b;
+    },
+    sortBatches(k){ if(this.batchSort.k===k) this.batchSort.dir*=-1; else this.batchSort={k,dir:1}; },
+
+    /* ---------- actions ---------- */
+    go(v){ this.view=v; window.scrollTo({top:0,behavior:prefersReduced()?'auto':'smooth'}); },
+    openRoom(id){ this.roomModal=id; },
+    ackAlert(id){ const a=this.alerts.find(x=>x.id===id); if(a){a.acked=true; this.toast('Advisory acknowledged');} },
+    investigate(a){ const r=this.rooms.find(x=>x.name===a.room); if(r){ this.roomModal=r.id; } else this.aiOpen=true; },
+    openInsight(ins){ this.aiOpen=true; this.aiMessages.push({role:'user',text:ins.title}); this.aiThinking=true;
+      setTimeout(()=>{ this.aiThinking=false; this.aiMessages.push({role:'ai',text:ins.body}); this.scrollAI(); },700); this.scrollAI(); },
+    logWeight(){ this.trim.kg=+Math.min(this.trim.target,this.trim.kg+0.5).toFixed(1); this.toast('+0.5 kg logged ('+this.trim.kg+' kg total)'); },
+    completeBatch(){ this.toast('Batch '+this.trim.batch+' completed → moved to cure'); },
+    logCheck(r){ this.toast('Manual check logged for '+r.name); },
+    adjustTarget(r){ this.toast('Setpoint editor opened for '+r.name); },
+    simulateDrift(r){ r.cwsi=Math.min(1,r.cwsi+0.35); r.vpd=+(r.vpd+0.4).toFixed(2); r.temp=+(r.temp+1.2).toFixed(1); this.recompute(); this.updateCharts();
+      this.toast('Simulated drift in '+r.name+' — AI advisory generated'); },
+    generateReport(){ this.toast('Audit pack generating… INCB-style PDF queued'); setTimeout(()=>this.toast('Audit pack ready ✓'),1400); },
+    saveNotes(){ try{ localStorage.setItem('la.notes',JSON.stringify(this.notes)); this.notesSaved=true; setTimeout(()=>this.notesSaved=false,1500);}catch(e){} },
+    toast(msg){ const id=++this._tid; this.toasts.push({id,msg}); setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600); },
+
+    /* ---------- AI ---------- */
+    askAI(q){ if(!q||!q.trim())return; this.aiOpen=true; this.aiMessages.push({role:'user',text:q}); this.aiInput=''; this.aiThinking=true; this.scrollAI();
+      setTimeout(()=>{ this.aiThinking=false; this.aiMessages.push({role:'ai',text:this.aiReply(q)}); this.scrollAI(); }, 750+Math.random()*500); },
+    aiReply(q){
+      const s=q.toLowerCase();
+      if(s.includes('flower b')||s.includes('stress')||s.includes('hot')) return 'Flower B (MAC 1, bulk wk6) is my top concern.\\n\\nWhat I see: VPD '+this.room('flower-b').vpd.toFixed(2)+' kPa and a persistent ~2.6 °C gradient in the back-left corner. CWSI has climbed to '+this.room('flower-b').cwsi.toFixed(2)+'.\\n\\nRoot cause: this tracks lights-on, not outdoor weather — so it\'s internal airflow, not the chiller. The back-left plants are transpiring against drier air than the rest of the canopy.\\n\\nDo this: add a circulation fan aimed at the back-left corner before touching the room RH setpoint (raising RH would over-humidify the healthy 80% of canopy). Re-check the gradient in 30 min.';
+      if(s.includes('harvest')||s.includes('predict')||s.includes('ready')) return 'Next harvest: LA-2540 Runtz in Flower C.\\n\\nIt\'s at 91% of its modeled cycle — dryback has widened to 18% and EC dropped to flush levels (2.2). Projected peak-ripeness window: Jun 8–11.\\n\\nRecommendation: book the trim team for the morning of Jun 8. Estimated yield ~16.2 kg.';
+      if(s.includes('power')||s.includes('energy')) return 'Live facility draw is about '+(this.rooms.reduce((a,r)=>a+(r.lightsOn?2.1:0.5)+r.ppfd/900,1.2)).toFixed(1)+' kW.\\n\\nLighting is 58% of load. Flower B is your heaviest room right now from added dehumidification fighting that corner gradient — fix the airflow and you\'ll claw back ~0.4 kW.\\n\\nQuick win: shift 30% of dehumidification to the post-22:00 off-peak window — roughly $180/wk.';
+      if(s.includes('drift')||s.includes('watch')||s.includes('drifting')) {
+        const w=this.watch.map(x=>'• '+x.title).join('\\n');
+        return 'Leading indicators I\'m watching (not yet alarms):\\n\\n'+(w||'Nothing drifting right now.')+'\\n\\nNone need action yet — I\'ll raise an advisory the moment one crosses into territory that affects yield.';
+      }
+      return 'I read all 6 rooms and 5 active batches live. Right now: '+this.facilityStatus().big.toLowerCase()+'. Ask me about a specific room (e.g. "Flower B"), harvest timing, power, or what\'s drifting.';
+    },
+    scrollAI(){ this.$nextTick(()=>{ const e=document.getElementById('aiScroll'); if(e) e.scrollTop=e.scrollHeight; }); },
+
+    /* ---------- command palette ---------- */
+    cmdResults(){
+      const q=this.cmdQuery.toLowerCase().trim();
+      const items=[
+        ...this.rooms.map(r=>({id:'r-'+r.id,label:r.name+' — '+r.stage,icon:'rooms',kind:'room',act:()=>this.openRoom(r.id)})),
+        ...this.batches.map(b=>({id:'b-'+b.id,label:b.id+' · '+b.strain,icon:'harvest',kind:'batch',act:()=>{this.go('batches');this.batchModal=b;}})),
+        {id:'a-ai',label:'Ask Plant-State AI',icon:'ai',kind:'action',act:()=>this.aiOpen=true},
+        {id:'a-rep',label:'Generate audit pack',icon:'doc',kind:'action',act:()=>{this.go('compliance');this.generateReport();}},
+        {id:'a-energy',label:'Open energy dashboard',icon:'power',kind:'action',act:()=>this.go('energy')},
+      ];
+      if(!q) return items.slice(0,6);
+      return items.filter(i=>i.label.toLowerCase().includes(q)).slice(0,8);
+    },
+    runCmd(c){ this.cmdOpen=false; this.cmdQuery=''; c.act(); },
+    onKey(e){ if((e.metaKey||e.ctrlKey)&&e.key==='k'){ e.preventDefault(); this.cmdOpen=!this.cmdOpen; }
+      if(e.key==='/'&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){ e.preventDefault(); this.cmdOpen=true; } },
+
+    /* ---------- format ---------- */
+    currentTitle(){ return ({dashboard:'Facility Overview',rooms:'Rooms & Zones',batches:'Batches & Harvest',irrigation:'Irrigation & Environment',energy:'Energy & Resources',compliance:'Compliance & Reports',alerts:'Alerts'})[this.view]||'Legacy Ag'; },
+    sevBg(s){ return s==='ok'||s==='optimal'?'bg-emerald-500/15':s==='warn'?'bg-amber-400/15':'bg-red-500/15'; },
+    sevText(s){ return s==='ok'||s==='optimal'?'text-emerald-400':s==='warn'?'text-amber-400':'text-red-400'; },
+    pillClass(s){ return s==='optimal'?'bg-emerald-500/15 text-emerald-300':s==='warn'?'bg-amber-400/15 text-amber-300':'bg-red-500/15 text-red-300'; },
+    dotClass(s){ return s==='optimal'||s==='ok'?'bg-emerald-400 text-emerald-400':s==='warn'?'bg-amber-400 text-amber-400':'bg-red-500 text-red-500'; },
+    statusWord(s){ return s==='optimal'?'Optimal':s==='warn'?'Attention':'Critical'; },
+    ago(ts){ const d=Math.max(0,Math.floor((Date.now()-ts)/1000)); if(d<60)return d+'s'; if(d<3600)return Math.floor(d/60)+'m'; return Math.floor(d/3600)+'h'; },
+    elapsed(ts){ const m=Math.floor((Date.now()-ts)/60000); return Math.floor(m/60)+'h '+(m%60)+'m'; },
+  }));
+});
+function worse(a,b){ const o={optimal:0,ok:0,warn:1,crit:2}; return o[b]>o[a]?b:a; }
+function adv(sev,icon,room,title,detail,action,confidence){ return {id:'a-'+room+'-'+title.slice(0,8).replace(/\s/g,''),sev,icon,room,title,detail,action,confidence,acked:false,ts:Date.now()}; }
+function prefersReduced(){ return window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches; }
+</script>
+<script defer src="https://unpkg.com/alpinejs@3/dist/cdn.min.js"></script>
+</body>
+</html>
