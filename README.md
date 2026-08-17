@@ -1,5 +1,7 @@
 # 🌿 Plant-State Dashboards — From Telemetry to Intelligence
 
+> **This repo is free. My 2am dryback debugging is not.** If it saved you a crop, a weekend, or a nervous breakdown — [buy the rabbit a bag of nutes](https://github.com/sponsors/JakeTheRabbit). If it didn't, keep your money. I respect a tight nutrient budget.
+
 **[Read the field guide → jaketherabbit.github.io/plant-state-dashboard](https://jaketherabbit.github.io/plant-state-dashboard/)**
 
 The grow-room dashboard, reimagined. Stop showing sensors — reason about the plant. Lead with what it
@@ -52,5 +54,3 @@ a token.
 ---
 
 © 2026 Legacy Ag · JakeTheRabbit · v1.0
-
-> **This repo is free. My 2am dryback debugging is not.** If it saved you a crop, a weekend, or a nervous breakdown — [buy the rabbit a bag of nutes](https://github.com/sponsors/JakeTheRabbit). If it didn't, keep your money. I respect a tight nutrient budget.
