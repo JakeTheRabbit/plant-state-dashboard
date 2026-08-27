@@ -267,7 +267,7 @@
                 <select x-model="trendRoom" @change="rebuildEnv()" class="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none">
                   <template x-for="r in rooms" :key="r.id"><option :value="r.id" x-text="r.name"></option></template>
                 </select>
-                <template x-for="rng in ['6h','24h','7d']" :key="rng">
+                <template x-for="rng in ['6h','12h','24h']" :key="rng">
                   <button @click="trendRange=rng;rebuildEnv()" class="text-xs px-2.5 py-1.5 rounded-lg transition"
                           :class="trendRange===rng?'bg-emerald-500/20 text-emerald-300':'text-slate-400 hover:bg-white/5'" x-text="rng"></button>
                 </template>
@@ -1318,15 +1318,41 @@ function computeHeadline(advisories, watchlist, rooms){
    ===================================================================================== */
 function prefersReduced(){ return window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches; }
 function killChart(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id]; } }
+
+/* ---------- time model: each history sample = 15 fictional minutes; 96 samples = 24 h ---------- */
+const SAMPLE_MIN = 15;
+function histStamps(n){
+  const step=SAMPLE_MIN*60000;
+  const end=Math.floor(Date.now()/step)*step;   // snap to the 15-min grid so hour marks exist
+  return Array.from({length:n},(_,i)=> new Date(end-(n-1-i)*step));
+}
+function fmtTick(d){ return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+const DAY_NAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MONTH_NAMES=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtFull(d){ return DAY_NAMES[d.getDay()]+" "+d.getDate()+" "+MONTH_NAMES[d.getMonth()]+" · "+fmtTick(d); }
+/* subtle x-axis: hairline at every hour mark, sparse HH:MM labels, full date+time in the tooltip */
+function timeAxis(state, labelEveryHours){
+  return {
+    display:true,
+    grid:{ drawTicks:false, color:(ctx)=>{ const d=state.stamps[ctx.index]; return d && d.getMinutes()===0 ? "rgba(255,255,255,.05)" : "rgba(0,0,0,0)"; } },
+    border:{ color:"rgba(255,255,255,.08)" },
+    ticks:{ color:"#475569", font:{size:9}, maxRotation:0, autoSkip:false, padding:2,
+      callback:function(v,i){ const d=state.stamps[i]; if(!d || d.getMinutes()!==0 || d.getHours()%labelEveryHours!==0) return null; return fmtTick(d); } },
+  };
+}
+function timeTooltipTitle(state){ return (items)=> items.length ? fmtFull(state.stamps[items[0].dataIndex]) : ""; }
 function sparkBase(){ return {responsive:false,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:600},
   plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}; }
 
-function mountSpark(id, data, color){
+function mountSpark(id, data, color, band){
   const c=document.getElementById(id); if(!c) return;
   killChart(id);
+  const opts=sparkBase();
+  if(band){ opts.okBand=band;
+    opts.scales.y.suggestedMin=Math.min(band[0],Math.min(...data))-(band[1]-band[0])*0.2;
+    opts.scales.y.suggestedMax=Math.max(band[1],Math.max(...data))+(band[1]-band[0])*0.2; }
   CHARTS[id]=new Chart(c,{type:"line",data:{labels:data.map((_,i)=>i),datasets:[{data,borderColor:color,borderWidth:2,fill:true,
     backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,48);g.addColorStop(0,color+"40");g.addColorStop(1,color+"00");return g;},
-    tension:.4,pointRadius:0}]},options:sparkBase()});
+    tension:.4,pointRadius:0}]},options:opts,plugins:band?[okBandPlugin]:[]});
 }
 function updateSpark(id, data, color){
   const ch=CHARTS[id]; if(!ch) return;
@@ -1334,11 +1360,13 @@ function updateSpark(id, data, color){
   ch.data.datasets[0].data=data; ch.data.datasets[0].borderColor=color;
   ch.update("none");
 }
+function envRangeN(range){ return range==="6h"?24 : range==="12h"?48 : 96; }
 function mountEnvChart(roomId, range){
   const c=document.getElementById("envChart"); if(!c) return;
   killChart("envChart");
   const h=ensureHist(roomId);
-  const n = range==="6h"?24 : range==="24h"?48 : 96;
+  const n = envRangeN(range), labelEvery = range==="6h"?1 : range==="12h"?2 : 4;
+  const state={ stamps:histStamps(n) };
   const temp=h.temp.slice(-n), rh=h.rh.map(v=>v/3).slice(-n), vpd=h.vpd.map(v=>v*15).slice(-n);
   const labels=temp.map(()=>"" );
   const ds=(label,data,color)=>({label,data,borderColor:color,backgroundColor:color+"18",borderWidth:2,tension:.4,pointRadius:0,fill:false});
@@ -1346,13 +1374,19 @@ function mountEnvChart(roomId, range){
     data:{labels,datasets:[ds("Temp °C",temp,"#34d399"),ds("RH (÷3)",rh,"#22d3ee"),ds("VPD ×15",vpd,"#fbbf24")]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:500},interaction:{mode:"index",intersect:false},
       plugins:{legend:{display:true,labels:{color:"#94a3b8",boxWidth:10,boxHeight:10,usePointStyle:true,font:{size:11}}},
-        tooltip:{backgroundColor:"#11161d",borderColor:"#243",borderWidth:1}},
-      scales:{x:{display:false},y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10}}}}}});
+        tooltip:{backgroundColor:"#11161d",borderColor:"#243",borderWidth:1,
+          callbacks:{ title:timeTooltipTitle(state),
+            label:(t)=> t.datasetIndex===0 ? " Temp "+t.parsed.y.toFixed(1)+" °C"
+                      : t.datasetIndex===1 ? " RH "+Math.round(t.parsed.y*3)+" %"
+                      : " VPD "+(t.parsed.y/15).toFixed(2)+" kPa" }}},
+      scales:{x:timeAxis(state,labelEvery),y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10}}}}}});
+  CHARTS["envChart"]._timeState=state;
 }
 function updateEnvChart(roomId, range){
   const ch=CHARTS["envChart"]; if(!ch) return;
   const h=ensureHist(roomId);
-  const n = range==="6h"?24 : range==="24h"?48 : 96;
+  const n = envRangeN(range);
+  ch._timeState.stamps=histStamps(n);
   ch.data.datasets[0].data=h.temp.slice(-n);
   ch.data.datasets[1].data=h.rh.map(v=>v/3).slice(-n);
   ch.data.datasets[2].data=h.vpd.map(v=>v*15).slice(-n);
@@ -1372,16 +1406,19 @@ function mountRoomHistChart(roomId){
   const c=document.getElementById("roomHistChart"); if(!c) return;
   killChart("roomHistChart");
   const h=ensureHist(roomId);
-  const vpd=h.vpd.slice(-48), vwc=h.vwc.slice(-48);
+  const n=96, state={ stamps:histStamps(n) };
+  const vpd=h.vpd.slice(-n), vwc=h.vwc.slice(-n);
   const labels=vpd.map(()=>"" );
   CHARTS["roomHistChart"]=new Chart(c,{type:"line",data:{labels,datasets:[
     {label:"VPD kPa",data:vpd,borderColor:"#34d399",backgroundColor:"#34d39915",borderWidth:2,tension:.4,pointRadius:0,fill:true,yAxisID:"y"},
     {label:"VWC %",data:vwc,borderColor:"#22d3ee",borderWidth:2,tension:.4,pointRadius:0,fill:false,yAxisID:"y1"}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:400},
-      plugins:{legend:{display:true,labels:{color:"#94a3b8",boxWidth:10,usePointStyle:true,font:{size:10}}}},
-      scales:{x:{display:false},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:400},interaction:{mode:"index",intersect:false},
+      plugins:{legend:{display:true,labels:{color:"#94a3b8",boxWidth:10,usePointStyle:true,font:{size:10}}},
+        tooltip:{backgroundColor:"#11161d",borderColor:"#243",borderWidth:1,callbacks:{title:timeTooltipTitle(state)}}},
+      scales:{x:timeAxis(state,4),
         y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10}}},
         y1:{position:"right",grid:{display:false},ticks:{color:"#155e75",font:{size:10}}}}}});
+  CHARTS["roomHistChart"]._timeState=state;
 }
 
 /* ---------- PiP sensor inspector: one floating, draggable, resizable graph per sensor ---------- */
@@ -1416,12 +1453,13 @@ function mountPipChart(pip, band){
   const c=document.getElementById("pip-"+pip.key); if(!c) return;
   killChart("pip-"+pip.key);
   const m=PIPMETRICS[pip.metric];
-  const data=ensureHist(pip.roomId)[m.ch].slice(-72);
+  const data=ensureHist(pip.roomId)[m.ch].slice(-96);
+  const state={ stamps:histStamps(data.length) };
   const opts={responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:400},
     interaction:{mode:"index",intersect:false},
     plugins:{legend:{display:false},tooltip:{backgroundColor:"#11161d",borderColor:"#243",borderWidth:1,
-      callbacks:{label:(t)=>t.parsed.y+" "+m.unit}}},
-    scales:{x:{display:false},y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10}}}}};
+      callbacks:{title:timeTooltipTitle(state),label:(t)=>" "+t.parsed.y+" "+m.unit}}},
+    scales:{x:timeAxis(state,4),y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10}}}}};
   if(band){ opts.okBand=band;
     opts.scales.y.suggestedMin=Math.min(band[0], Math.min(...data))-(band[1]-band[0])*0.15;
     opts.scales.y.suggestedMax=Math.max(band[1], Math.max(...data))+(band[1]-band[0])*0.15; }
@@ -1429,11 +1467,13 @@ function mountPipChart(pip, band){
     data:{labels:data.map(()=>""),datasets:[{data,borderColor:"#34d399",borderWidth:2,tension:.35,pointRadius:0,fill:true,
       backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,ctx.chart.height||200);g.addColorStop(0,"#34d39930");g.addColorStop(1,"#34d39900");return g;}}]},
     options:opts, plugins:[okBandPlugin]});
+  CHARTS["pip-"+pip.key]._timeState=state;
 }
 function updatePipChart(pip){
   const ch=CHARTS["pip-"+pip.key]; if(!ch) return;
   const m=PIPMETRICS[pip.metric];
-  const data=ensureHist(pip.roomId)[m.ch].slice(-72);
+  const data=ensureHist(pip.roomId)[m.ch].slice(-96);
+  ch._timeState.stamps=histStamps(data.length);
   ch.data.datasets[0].data=data; ch.data.labels=data.map(()=>"");
   ch.update("none");
 }
@@ -1775,7 +1815,7 @@ document.addEventListener("alpine:init", () => {
     saveBands(){
       BANDS = JSON.parse(JSON.stringify(this.bandsDraft)); persistBands();
       this.rooms.forEach(r=>{ r.derived = deriveSignals(r); });
-      this.recompute(); this.bandsOpen=false; this.toast("Bands saved — envelopes re-evaluated");
+      this.recompute(); this.bandsOpen=false; this.$nextTick(()=>this.mountCharts()); this.toast("Bands saved — envelopes re-evaluated");
     },
     resetBands(){ resetBandsToDefault(); this.bandsDraft = JSON.parse(JSON.stringify(BANDS));
       this.rooms.forEach(r=>{ r.derived = deriveSignals(r); }); this.recompute(); this.toast("Bands reset to Athena-style defaults"); },
@@ -1802,7 +1842,7 @@ document.addEventListener("alpine:init", () => {
       if(this.view==="dashboard"||this.view==="rooms"){
         this.rooms.forEach(r=>{
           const data = ensureHist(r.id).vpd.slice(-24);   // plain copy — never the reactive array
-          mountSpark((this.view==="dashboard"?"dspark-":"rspark-")+r.id, data, col(r.status));
+          mountSpark((this.view==="dashboard"?"dspark-":"rspark-")+r.id, data, col(r.status), r.dryRoom?null:bandFor(r).vpd);
         });
       }
       if(this.view==="dashboard") mountEnvChart(this.trendRoom, this.trendRange);
@@ -1885,7 +1925,7 @@ document.addEventListener("alpine:init", () => {
       const b=m.band(bandFor(this.room(p.roomId))); return "band "+b[0]+"–"+b[1]+" "+m.unit; },
     pipStats(p){
       const m=PIPMETRICS[p.metric];
-      const arr=ensureHist(p.roomId)[m.ch].slice(-72);
+      const arr=ensureHist(p.roomId)[m.ch].slice(-96);
       if(!arr.length) return {now:"—",min:"—",max:"—",avg:"—"};
       const f=(v)=>(+v).toFixed(m.dp);
       return { now:f(arr[arr.length-1]), min:f(Math.min(...arr)), max:f(Math.max(...arr)),
