@@ -107,6 +107,34 @@ Rules read derived state and FUSE signals (e.g. `pump_power > 100W AND all valve
 
 ---
 
+## 5b. Drill-down & the trust ramp
+
+Operators do not trust an inference layer on day one — they trust the sensors they have always read.
+The dashboard must let them **verify their way to calm**, not demand belief.
+
+**Drill-down architecture:**
+- A room card opens a **full-width room dashboard** (a view with a Back button, not a cramped modal):
+  plant truth → inferred tiles → raw sensor cards → history/setpoints/zones/notes.
+- **Every raw reading, everywhere, is clickable** — room-card mini values, room-view sensor cards,
+  basement table cells, zone VWC/EC, advisory/watchlist entries. Clicking opens a **PiP sensor
+  inspector**: a floating card, draggable + resizable (pointer events, viewport-clamped), showing a
+  proper graph of that one channel with the **OK band drawn in**, plus now/min/avg/max. Several can
+  be open at once (cap ~4) so channels can be compared side by side; they update live and survive
+  navigation.
+
+**Trust ramp — three display modes, persisted:**
+- **Raw** — basement open, every number visible. Day one: prove the raw data matches the controllers.
+- **Verify** (default) — inference leads, receipts attached: every inferred tile names its source
+  sensors, every advisory opens with its evidence chain expanded.
+- **Calm** — the destination: plant truth only, raw one click away.
+
+**Track record — trust is earned, not asserted.** Keep a public ledger: advisories raised /
+confirmed real / false alarms, with a visible hit-rate. Acknowledge = confirmed; a **False alarm**
+button on every advisory logs the miss (and should down-weight that rule). The dashboard keeping
+score on itself is what converts sensor-watchers into headline-readers.
+
+---
+
 ## 6. ⚠ NON-NEGOTIABLE BUILD RULES (learned from real breakage)
 
 These are not style preferences — skipping them produces broken dashboards.
@@ -172,6 +200,12 @@ Follow the Plant-State Intelligence philosophy:
 - Advisories come from a pure rules array that FUSES signals (encode real failure modes, e.g. pump dead-head =
   pump drawing power with all valves closed; corner hotspot; shallow dryback; CO2 high while dark; engine
   unhealthy; sensor health degraded). Each advisory: {sev, icon, confidence, title, detail, action, evidence}.
+- Drill-down + trust ramp: a room card opens a FULL-WIDTH room dashboard (a view with Back, not a modal).
+  Every raw reading anywhere is clickable and opens a PiP sensor inspector — a floating, draggable, resizable
+  card graphing that one channel with the OK band drawn in and now/min/avg/max stats; several at once,
+  live-updating, surviving navigation. Three persisted display modes (Raw / Verify / Calm — default Verify:
+  every inferred tile names its source sensors, every advisory opens with evidence expanded) and a public
+  track-record ledger (raised / confirmed / false alarms + hit-rate) fed by Acknowledge and a False-alarm button.
 
 Tech (premium tier): Tailwind v4 browser CDN, Alpine 3, Chart.js 4, inline Lucide-style SVG icons. Self-contained.
 Responsive: mobile bottom-nav + bottom-sheets → desktop sidebar + header. Command palette (Cmd-K). WCAG AA,

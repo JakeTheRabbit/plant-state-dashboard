@@ -131,6 +131,13 @@
           <kbd class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-white/10 border border-white/10">⌘K</kbd>
         </button>
 
+        <!-- trust panel: display mode + track record -->
+        <button @click="trustOpen=true" class="h-10 px-2.5 grid-flow-col grid place-items-center gap-1.5 rounded-xl glass hover:border-white/20 transition lift"
+                aria-label="Why trust this dashboard" title="Trust — mode + track record">
+          <span x-html="icons.shield" class="w-5 h-5 block" :class="trustMode==='calm'?'text-emerald-400':'text-slate-300'"></span>
+          <span class="hidden lg:block text-[11px] font-medium text-slate-400 capitalize" x-text="trustMode"></span>
+        </button>
+
         <!-- target bands (editable envelopes, spec §4) -->
         <button @click="openBands()" class="w-10 h-10 grid place-items-center rounded-xl glass hover:border-white/20 transition lift"
                 aria-label="Edit target bands" title="Target bands">
@@ -219,8 +226,9 @@
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
             <template x-for="r in rooms" :key="r.id">
-              <button @click="openRoom(r.id)" class="text-left glass rounded-2xl p-4 lift hover:border-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
-                      :class="r.status==='crit'?'ring-glow-crit':r.status==='warn'?'ring-glow-warn':''">
+              <div @click="openRoom(r.id)" @keydown.enter="openRoom(r.id)" tabindex="0" role="button"
+                   class="text-left glass rounded-2xl p-4 lift hover:border-white/15 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+                   :class="r.status==='crit'?'ring-glow-crit':r.status==='warn'?'ring-glow-warn':''">
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <div class="font-semibold tracking-tight truncate" x-text="r.name"></div>
@@ -233,19 +241,19 @@
                   </span>
                 </div>
                 <div class="mt-3 flex items-end justify-between gap-3">
-                  <div>
+                  <button @click.stop="openPip(r.id,'vpd')" class="text-left rounded-lg -m-1 p-1 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60" title="Open VPD graph">
                     <div class="text-3xl font-bold tracking-tight leading-none" x-text="r.vpd.toFixed(2)"></div>
                     <div class="text-[11px] text-slate-400 mt-1">VPD kPa <span class="text-slate-600">·</span> <span x-text="vpdJudge(r)"></span></div>
-                  </div>
-                  <canvas :id="'dspark-'+r.id" width="120" height="40" class="opacity-90"></canvas>
+                  </button>
+                  <canvas :id="'dspark-'+r.id" width="120" height="40" class="opacity-90" @click.stop="openPip(r.id,'vpd')"></canvas>
                 </div>
                 <div class="mt-3 grid grid-cols-4 gap-2 text-center">
-                  <div><div class="text-sm font-semibold" x-text="r.temp.toFixed(1)+'°'"></div><div class="text-[10px] text-slate-500">Temp</div></div>
-                  <div><div class="text-sm font-semibold" x-text="Math.round(r.rh)+'%'"></div><div class="text-[10px] text-slate-500">RH</div></div>
-                  <div><div class="text-sm font-semibold" x-text="r.lightsOn?Math.round(r.ppfd):'—'"></div><div class="text-[10px] text-slate-500" x-text="r.lightsOn?'PPFD':'dark'"></div></div>
-                  <div><div class="text-sm font-semibold" x-text="r.ec.toFixed(1)"></div><div class="text-[10px] text-slate-500">EC</div></div>
+                  <button @click.stop="openPip(r.id,'temp')" class="rounded-lg py-1 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60" title="Open temp graph"><div class="text-sm font-semibold" x-text="r.temp.toFixed(1)+'°'"></div><div class="text-[10px] text-slate-500">Temp</div></button>
+                  <button @click.stop="openPip(r.id,'rh')" class="rounded-lg py-1 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60" title="Open RH graph"><div class="text-sm font-semibold" x-text="Math.round(r.rh)+'%'"></div><div class="text-[10px] text-slate-500">RH</div></button>
+                  <button @click.stop="openPip(r.id,'ppfd')" class="rounded-lg py-1 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60" title="Open PPFD graph"><div class="text-sm font-semibold" x-text="r.lightsOn?Math.round(r.ppfd):'—'"></div><div class="text-[10px] text-slate-500" x-text="r.lightsOn?'PPFD':'dark'"></div></button>
+                  <button @click.stop="openPip(r.id,'ec')" class="rounded-lg py-1 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60" title="Open EC graph"><div class="text-sm font-semibold" x-text="r.ec.toFixed(1)"></div><div class="text-[10px] text-slate-500">EC</div></button>
                 </div>
-              </button>
+              </div>
             </template>
           </div>
         </div>
@@ -318,6 +326,8 @@
                         <button @click="ackAlert(a.id)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium transition border border-white/10">Acknowledge</button>
                         <button @click="investigate(a)" class="h-9 px-3 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-xs font-medium transition border border-emerald-400/20">Investigate</button>
                         <button @click="a.showEv=!a.showEv" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium transition border border-white/10 text-slate-400" x-text="a.showEv?'Hide evidence':'Evidence'"></button>
+                        <button x-show="a.metric" @click="openPip(a.roomId, a.metric)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium transition border border-white/10 text-slate-400 flex items-center gap-1"><span x-html="icons.activity" class="w-3.5 h-3.5 block"></span> Graph</button>
+                        <button @click="falseAlarm(a.id)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-red-500/15 hover:text-red-300 hover:border-red-400/25 text-xs font-medium transition border border-white/10 text-slate-500">False alarm</button>
                         <span class="ml-auto text-[11px] text-slate-500 inline-flex items-center gap-1">
                           <span class="w-1.5 h-1.5 rounded-full" :class="a.confidence==='high'?'bg-emerald-400':a.confidence==='med'?'bg-amber-400':'bg-slate-500'"></span>
                           confidence: <span x-text="a.confidence"></span>
@@ -341,13 +351,14 @@
             </div>
             <div class="glass rounded-2xl divide-y divide-white/8">
               <template x-for="w in watch" :key="w.id">
-                <div class="p-3.5 flex items-start gap-3">
+                <button @click="w.metric && openPip(w.roomId, w.metric)" class="w-full text-left p-3.5 flex items-start gap-3 hover:bg-white/[0.03] transition group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60">
                   <span class="w-1.5 h-1.5 mt-1.5 rounded-full bg-amber-400 shrink-0"></span>
-                  <div class="min-w-0">
+                  <div class="min-w-0 flex-1">
                     <div class="text-[13px] font-medium" x-text="w.title"></div>
                     <div class="text-[11px] text-slate-400 mt-0.5" x-text="w.detail"></div>
                   </div>
-                </div>
+                  <span x-show="w.metric" x-html="icons.activity" class="w-3.5 h-3.5 block text-slate-600 group-hover:text-emerald-400 transition shrink-0 mt-0.5" title="Open graph"></span>
+                </button>
               </template>
               <div x-show="!watch.length" class="p-6 text-center text-sm text-slate-500">Nothing drifting.</div>
             </div>
@@ -385,14 +396,14 @@
                 <tbody class="divide-y divide-white/6 font-mono">
                   <template x-for="row in basementRows()" :key="'base-'+row.id">
                     <tr class="hover:bg-white/[0.02]">
-                      <td class="px-4 py-2 font-sans font-medium text-slate-300" x-text="row.name"></td>
-                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.temp"></td>
-                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.rh"></td>
-                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.vpd"></td>
-                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.ppfd"></td>
-                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.co2"></td>
-                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.ec"></td>
-                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.vwc"></td>
+                      <td class="px-4 py-2 font-sans font-medium text-slate-300 cursor-pointer hover:text-emerald-300" @click="openRoom(row.id)" x-text="row.name"></td>
+                      <td class="px-3 py-2 text-right text-slate-400 cursor-pointer hover:text-emerald-300" @click="openPip(row.id,'temp')" title="Open graph" x-text="row.temp"></td>
+                      <td class="px-3 py-2 text-right text-slate-400 cursor-pointer hover:text-emerald-300" @click="openPip(row.id,'rh')" title="Open graph" x-text="row.rh"></td>
+                      <td class="px-3 py-2 text-right text-slate-400 cursor-pointer hover:text-emerald-300" @click="openPip(row.id,'vpd')" title="Open graph" x-text="row.vpd"></td>
+                      <td class="px-3 py-2 text-right text-slate-400 cursor-pointer hover:text-emerald-300" @click="openPip(row.id,'ppfd')" title="Open graph" x-text="row.ppfd"></td>
+                      <td class="px-3 py-2 text-right text-slate-400 cursor-pointer hover:text-emerald-300" @click="openPip(row.id,'co2')" title="Open graph" x-text="row.co2"></td>
+                      <td class="px-3 py-2 text-right text-slate-400 cursor-pointer hover:text-emerald-300" @click="openPip(row.id,'ec')" title="Open graph" x-text="row.ec"></td>
+                      <td class="px-3 py-2 text-right text-slate-400 cursor-pointer hover:text-emerald-300" @click="openPip(row.id,'db')" title="Open graph" x-text="row.vwc"></td>
                       <td class="px-3 py-2 text-right text-slate-400" x-text="row.pump"></td>
                       <td class="px-3 py-2 text-right text-slate-400" x-text="row.co2v"></td>
                       <td class="px-3 py-2 text-right text-slate-400" x-text="row.valves"></td>
@@ -413,20 +424,21 @@
       <section x-show="view==='rooms'" class="fade-enter space-y-5">
         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           <template x-for="r in rooms" :key="'rv-'+r.id">
-            <button @click="openRoom(r.id)" class="text-left glass rounded-2xl p-4 lift hover:border-white/15"
-                    :class="r.status==='crit'?'ring-glow-crit':r.status==='warn'?'ring-glow-warn':''">
+            <div @click="openRoom(r.id)" @keydown.enter="openRoom(r.id)" tabindex="0" role="button"
+                 class="text-left glass rounded-2xl p-4 lift hover:border-white/15 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+                 :class="r.status==='crit'?'ring-glow-crit':r.status==='warn'?'ring-glow-warn':''">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0"><div class="font-semibold truncate" x-text="r.name"></div>
                   <div class="text-[11px] text-slate-400 truncate" x-text="r.stage+' · '+r.weekLabel"></div></div>
                 <span class="text-[10px] font-semibold px-2 py-1 rounded-full" :class="pillClass(r.status)" x-text="statusWord(r.status)"></span>
               </div>
               <div class="mt-3 grid grid-cols-3 gap-2 text-center">
-                <div><div class="text-lg font-bold" x-text="r.vpd.toFixed(2)"></div><div class="text-[10px] text-slate-500">VPD</div></div>
-                <div><div class="text-lg font-bold" x-text="r.temp.toFixed(1)+'°'"></div><div class="text-[10px] text-slate-500">Temp</div></div>
-                <div><div class="text-lg font-bold" x-text="Math.round(r.rh)+'%'"></div><div class="text-[10px] text-slate-500">RH</div></div>
+                <button @click.stop="openPip(r.id,'vpd')" class="rounded-lg py-1 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60" title="Open VPD graph"><div class="text-lg font-bold" x-text="r.vpd.toFixed(2)"></div><div class="text-[10px] text-slate-500">VPD</div></button>
+                <button @click.stop="openPip(r.id,'temp')" class="rounded-lg py-1 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60" title="Open temp graph"><div class="text-lg font-bold" x-text="r.temp.toFixed(1)+'°'"></div><div class="text-[10px] text-slate-500">Temp</div></button>
+                <button @click.stop="openPip(r.id,'rh')" class="rounded-lg py-1 hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60" title="Open RH graph"><div class="text-lg font-bold" x-text="Math.round(r.rh)+'%'"></div><div class="text-[10px] text-slate-500">RH</div></button>
               </div>
-              <canvas :id="'rspark-'+r.id" width="240" height="48" class="mt-3 w-full"></canvas>
-            </button>
+              <canvas :id="'rspark-'+r.id" width="240" height="48" class="mt-3 w-full" @click.stop="openPip(r.id,'vpd')"></canvas>
+            </div>
           </template>
         </div>
       </section>
@@ -516,7 +528,7 @@
                   <div class="min-w-0 flex-1">
                     <div class="text-sm font-medium flex items-center gap-2"><span x-text="z.name"></span>
                       <span class="w-1.5 h-1.5 rounded-full" :class="z.valve==='open'?'bg-cyan-400':'bg-slate-600'" :title="'valve '+z.valve"></span></div>
-                    <div class="text-[11px] text-slate-400">Phase <span class="text-slate-200" x-text="z.phase"></span> · VWC <span :class="z.vwc<z.p3Floor?'text-amber-400 font-semibold':''" x-text="z.vwc.toFixed(0)"></span>% <span class="text-slate-600">(floor <span x-text="z.p3Floor"></span>%)</span> · EC <span x-text="z.ec.toFixed(1)"></span> · last shot <span x-text="z.lastShot"></span> → +<span x-text="z.response.toFixed(1)"></span>% VWC</div>
+                    <div class="text-[11px] text-slate-400">Phase <span class="text-slate-200" x-text="z.phase"></span> · <button @click="openPip(z.roomId,'db')" class="hover:text-emerald-300 underline decoration-dotted decoration-slate-600 underline-offset-2" title="Open VWC graph">VWC <span :class="z.vwc<z.p3Floor?'text-amber-400 font-semibold':''" x-text="z.vwc.toFixed(0)"></span>%</button> <span class="text-slate-600">(floor <span x-text="z.p3Floor"></span>%)</span> · <button @click="openPip(z.roomId,'ec')" class="hover:text-emerald-300 underline decoration-dotted decoration-slate-600 underline-offset-2" title="Open EC graph">EC <span x-text="z.ec.toFixed(1)"></span></button> · last shot <span x-text="z.lastShot"></span> → +<span x-text="z.response.toFixed(1)"></span>% VWC</div>
                   </div>
                   <button @click="z.auto=!z.auto;toast(z.name+(z.auto?' → Auto':' → Manual'))"
                     class="relative w-12 h-7 rounded-full transition shrink-0" :class="z.auto?'bg-emerald-500':'bg-white/15'">
@@ -610,8 +622,132 @@
                 <p class="text-[12px] text-slate-500 mt-1"><span class="text-slate-400 font-medium">Next step:</span> <span x-text="a.action"></span></p>
                 <code class="block mt-1.5 text-[11px] text-cyan-300/70 break-all" x-text="a.evidence"></code>
               </div>
+              <button x-show="a.metric" @click="openPip(a.roomId, a.metric)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs border border-white/10 shrink-0 flex items-center gap-1" title="Open graph"><span x-html="icons.activity" class="w-3.5 h-3.5 block"></span> Graph</button>
               <button x-show="!a.acked" @click="ackAlert(a.id)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs border border-white/10 shrink-0">Ack</button>
               <span x-show="a.acked" class="text-[11px] text-emerald-400 shrink-0">✓ acked</span>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- ============ ROOM (full-width dashboard) ============ -->
+      <section x-show="view==='room'" class="fade-enter">
+        <template x-if="view==='room' && currentRoom">
+          <div class="space-y-5" x-data="{ get r(){ return this.cr(); } }">
+
+            <!-- room header -->
+            <div class="flex items-center gap-3 flex-wrap">
+              <button @click="closeRoom()" class="h-10 px-3 rounded-xl glass hover:border-white/20 transition flex items-center gap-1.5 text-sm text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60">
+                <span x-html="icons.collapse" class="w-4 h-4 block"></span> Back
+              </button>
+              <div class="w-11 h-11 rounded-2xl grid place-items-center shrink-0" :class="sevBg(r.status)"><span x-html="icons.rooms" class="w-6 h-6 block" :class="sevText(r.status)"></span></div>
+              <div class="min-w-0 flex-1">
+                <div class="text-xl font-bold tracking-tight" x-text="r.name"></div>
+                <div class="text-xs text-slate-400" x-text="r.stage+' · '+r.weekLabel+' · '+r.strain+' · batch '+r.batch"></div>
+              </div>
+              <span class="shrink-0 text-[10px] font-semibold px-2.5 py-1.5 rounded-full inline-flex items-center gap-1.5" :class="pillClass(r.status)">
+                <span class="w-1.5 h-1.5 rounded-full pulse-dot" :class="dotClass(r.status)"></span>
+                <span x-text="statusWord(r.status)"></span>
+              </span>
+            </div>
+
+            <!-- plant truth -->
+            <div class="glass-strong rounded-3xl p-5" :class="r.status==='crit'?'ring-glow-crit':r.status==='warn'?'ring-glow-warn':'ring-glow-ok'">
+              <div class="text-base md:text-lg font-semibold" :class="sevText(r.status)" x-text="r.plantTruth"></div>
+            </div>
+
+            <!-- inferred plant-state signals (spec §4) -->
+            <div>
+              <div class="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><span x-html="icons.gauge" class="w-4 h-4 block text-emerald-400"></span> Plant state — inferred</div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+                <template x-for="t in stateTiles(r)" :key="t.k">
+                  <div class="rounded-2xl glass p-3.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-[11px] uppercase tracking-wider text-slate-400" x-text="t.label"></span>
+                      <span class="w-1.5 h-1.5 rounded-full" :class="t.s==='ok'?'bg-emerald-400':t.s==='watch'?'bg-amber-300':'bg-amber-400'"></span>
+                    </div>
+                    <div class="text-lg font-bold mt-1" :class="tileCls(t.s)" x-text="t.val"></div>
+                    <div class="text-[10px] text-slate-500" x-text="t.sub"></div>
+                    <div x-show="trustMode!=='calm'" class="text-[10px] text-cyan-300/60 mt-1.5 pt-1.5 border-t border-white/8">from: <span x-text="tileSources(t.k)"></span></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- raw sensors — each card opens a PiP inspector -->
+            <div>
+              <div class="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2 flex-wrap">
+                <span x-html="icons.layers" class="w-4 h-4 block text-slate-500"></span> Raw sensors
+                <span class="text-[11px] text-slate-500 font-normal">— click any card for the full graph. The inferred tiles above are computed from these.</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <template x-for="m in roomMetrics(r)" :key="m.k">
+                  <button @click="openPip(r.id, m.k)"
+                          class="text-left rounded-2xl bg-white/[0.03] border border-white/8 p-3.5 lift hover:border-emerald-400/30 group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60">
+                    <div class="flex items-center justify-between">
+                      <span class="text-[11px] uppercase tracking-wider text-slate-400" x-text="m.label"></span>
+                      <span x-html="icons.activity" class="w-3.5 h-3.5 block text-slate-600 group-hover:text-emerald-400 transition"></span>
+                    </div>
+                    <div class="text-xl font-bold mt-1" :class="m.cls" x-text="m.val"></div>
+                    <div class="text-[10px] text-slate-500" x-text="m.sub"></div>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- detail grid -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              <div class="xl:col-span-2 space-y-4">
+                <div class="glass rounded-2xl p-4">
+                  <div class="text-xs font-semibold text-slate-300 mb-2">24h history — VPD + VWC</div>
+                  <div class="h-64 relative" style="height:16rem;position:relative"><canvas id="roomHistChart"></canvas></div>
+                </div>
+                <div class="glass rounded-2xl p-4">
+                  <div class="text-xs font-semibold text-slate-300 mb-3">Setpoint vs actual</div>
+                  <div class="space-y-3">
+                    <template x-for="s in setpointRows(r)" :key="s.label">
+                      <div>
+                        <div class="flex justify-between text-[12px] mb-1"><span class="text-slate-400" x-text="s.label"></span>
+                          <span><span x-text="s.actual"></span> <span class="text-slate-600">/ target</span> <span class="text-slate-400" x-text="s.target"></span></span></div>
+                        <div class="h-1.5 rounded-full bg-white/10 relative overflow-hidden">
+                          <div class="absolute top-0 bottom-0 w-1 bg-emerald-400/70" :style="'left:'+s.targetPct+'%'"></div>
+                          <div class="h-full rounded-full" :class="s.devCls" :style="'width:'+s.actualPct+'%'"></div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-4">
+                <div x-show="roomZones(r).length" class="glass rounded-2xl p-4">
+                  <div class="text-xs font-semibold text-slate-300 mb-3">Crop-steering zones</div>
+                  <div class="space-y-2">
+                    <template x-for="z in roomZones(r)" :key="'rm-'+z.id">
+                      <div class="p-2.5 rounded-xl bg-white/[0.03] border border-white/8 text-[12px] space-y-1">
+                        <div class="flex items-center gap-2">
+                          <span class="font-medium text-slate-200" x-text="z.id"></span>
+                          <span class="px-1.5 py-0.5 rounded bg-white/8 text-slate-300" x-text="z.phase"></span>
+                          <span class="ml-auto w-1.5 h-1.5 rounded-full" :class="z.valve==='open'?'bg-cyan-400':'bg-slate-600'" :title="'valve '+z.valve"></span>
+                        </div>
+                        <div :class="z.vwc < z.p3Floor ? 'text-amber-400 font-semibold' : 'text-slate-400'">VWC <span x-text="z.vwc.toFixed(0)"></span>% <span class="text-slate-600">/ floor <span x-text="z.p3Floor"></span>%</span> · EC <span x-text="z.ec.toFixed(1)"></span></div>
+                        <div class="text-slate-500">last shot <span x-text="z.lastShot"></span> · +<span x-text="z.response.toFixed(1)"></span>% VWC</div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+                <div class="glass rounded-2xl p-4">
+                  <div class="text-xs font-semibold text-slate-300 mb-2">Operator notes</div>
+                  <textarea x-model="notes[r.id]" @input.debounce.600="saveNotes()" rows="3" placeholder="Log a manual check, observation…"
+                    class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 resize-none"></textarea>
+                  <div class="text-[10px] text-slate-500 mt-1" x-show="notesSaved">Saved to this device ✓</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <button @click="logCheck(r)" class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition">Log check</button>
+                  <button @click="adjustTarget(r)" class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition">Adjust bands</button>
+                  <button @click="cmdOpen=true; cmdQuery='Demo:'" class="h-11 rounded-xl bg-amber-400/15 border border-amber-400/25 text-amber-300 text-xs font-medium hover:bg-amber-400/25 transition">Demo scenarios</button>
+                  <button class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition flex items-center justify-center gap-1"><span x-html="icons.cam" class="w-4 h-4 block"></span> Camera</button>
+                </div>
+              </div>
             </div>
           </div>
         </template>
@@ -640,110 +776,6 @@
         style="bottom:calc(72px + env(safe-area-inset-bottom))" aria-label="AI">
   <span x-html="icons.ai" class="w-6 h-6 block"></span>
 </button>
-
-<!-- ===================== ROOM DETAIL (modal / bottom sheet) ===================== -->
-<div x-show="roomModal" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="roomModal=null">
-  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="roomModal=null" x-transition.opacity></div>
-  <div class="absolute inset-x-0 bottom-0 md:inset-0 md:m-auto md:h-fit md:max-w-3xl md:rounded-3xl rounded-t-3xl glass-strong border-t md:border border-white/12 max-h-[92vh] overflow-y-auto scrollx"
-       x-transition:enter="transition duration-300" x-transition:enter-start="translate-y-full md:translate-y-4 md:opacity-0" x-transition:enter-end="translate-y-0 md:opacity-100">
-    <template x-if="roomModal">
-      <div x-data="{r:room(roomModal)}">
-        <div class="sticky top-0 glass-strong border-b border-white/8 p-5 flex items-start gap-3 z-10">
-          <div class="w-12 h-12 rounded-2xl grid place-items-center shrink-0" :class="sevBg(r.status)"><span x-html="icons.rooms" class="w-6 h-6 block" :class="sevText(r.status)"></span></div>
-          <div class="min-w-0 flex-1">
-            <div class="text-lg font-bold" x-text="r.name"></div>
-            <div class="text-xs text-slate-400" x-text="r.stage+' · '+r.weekLabel+' · '+r.strain+' · batch '+r.batch"></div>
-          </div>
-          <button @click="roomModal=null" class="w-9 h-9 rounded-lg grid place-items-center bg-white/5 hover:bg-white/10"><span x-html="icons.x" class="w-5 h-5 block"></span></button>
-        </div>
-        <div class="p-5 space-y-5">
-          <!-- plant truth -->
-          <div class="rounded-2xl p-4" :class="sevBg(r.status)">
-            <div class="text-sm font-semibold" :class="sevText(r.status)" x-text="r.plantTruth"></div>
-          </div>
-          <!-- inferred plant-state signals (spec §4 — the plant, not the room) -->
-          <div>
-            <div class="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><span x-html="icons.gauge" class="w-4 h-4 block text-emerald-400"></span> Plant state — inferred</div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <template x-for="t in stateTiles(r)" :key="t.k">
-                <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-3.5">
-                  <div class="flex items-center justify-between">
-                    <span class="text-[11px] uppercase tracking-wider text-slate-400" x-text="t.label"></span>
-                    <span class="w-1.5 h-1.5 rounded-full" :class="t.s==='ok'?'bg-emerald-400':t.s==='watch'?'bg-amber-300':'bg-amber-400'"></span>
-                  </div>
-                  <div class="text-lg font-bold mt-1" :class="tileCls(t.s)" x-text="t.val"></div>
-                  <div class="text-[10px] text-slate-500" x-text="t.sub"></div>
-                </div>
-              </template>
-            </div>
-          </div>
-          <!-- raw sensors (the room's basement) -->
-          <div class="text-xs font-semibold text-slate-300 -mb-2 flex items-center gap-2"><span x-html="icons.layers" class="w-4 h-4 block text-slate-500"></span> Raw readings</div>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <template x-for="m in roomMetrics(r)" :key="m.k">
-              <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-3.5">
-                <div class="text-[11px] uppercase tracking-wider text-slate-400" x-text="m.label"></div>
-                <div class="text-xl font-bold mt-1" :class="m.cls" x-text="m.val"></div>
-                <div class="text-[10px] text-slate-500" x-text="m.sub"></div>
-              </div>
-            </template>
-          </div>
-          <!-- setpoints vs actual -->
-          <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
-            <div class="text-xs font-semibold text-slate-300 mb-3">Setpoint vs actual</div>
-            <div class="space-y-3">
-              <template x-for="s in setpointRows(r)" :key="s.label">
-                <div>
-                  <div class="flex justify-between text-[12px] mb-1"><span class="text-slate-400" x-text="s.label"></span>
-                    <span><span x-text="s.actual"></span> <span class="text-slate-600">/ target</span> <span class="text-slate-400" x-text="s.target"></span></span></div>
-                  <div class="h-1.5 rounded-full bg-white/10 relative overflow-hidden">
-                    <div class="absolute top-0 bottom-0 w-1 bg-emerald-400/70" :style="'left:'+s.targetPct+'%'"></div>
-                    <div class="h-full rounded-full" :class="s.devCls" :style="'width:'+s.actualPct+'%'"></div>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-          <!-- crop-steering zones in this room -->
-          <div x-show="roomZones(r).length" class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
-            <div class="text-xs font-semibold text-slate-300 mb-3">Crop-steering zones</div>
-            <div class="space-y-2">
-              <template x-for="z in roomZones(r)" :key="'rm-'+z.id">
-                <div class="flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.03] border border-white/8 text-[12px]">
-                  <span class="font-medium text-slate-200 w-14" x-text="z.id"></span>
-                  <span class="px-1.5 py-0.5 rounded bg-white/8 text-slate-300" x-text="z.phase"></span>
-                  <span :class="z.vwc < z.p3Floor ? 'text-amber-400 font-semibold' : 'text-slate-400'">VWC <span x-text="z.vwc.toFixed(0)"></span>% <span class="text-slate-600">/ floor <span x-text="z.p3Floor"></span>%</span></span>
-                  <span class="text-slate-400">EC <span x-text="z.ec.toFixed(1)"></span></span>
-                  <span class="ml-auto text-slate-500">last shot <span x-text="z.lastShot"></span> · +<span x-text="z.response.toFixed(1)"></span>% VWC</span>
-                  <span class="w-1.5 h-1.5 rounded-full" :class="z.valve==='open'?'bg-cyan-400':'bg-slate-600'" :title="'valve '+z.valve"></span>
-                </div>
-              </template>
-            </div>
-          </div>
-          <!-- history chart -->
-          <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
-            <div class="text-xs font-semibold text-slate-300 mb-2">24h history — VPD + VWC</div>
-            <div class="h-48 relative" style="height:12rem;position:relative"><canvas id="roomHistChart"></canvas></div>
-          </div>
-          <!-- notes -->
-          <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
-            <div class="text-xs font-semibold text-slate-300 mb-2">Operator notes</div>
-            <textarea x-model="notes[r.id]" @input.debounce.600="saveNotes()" rows="3" placeholder="Log a manual check, observation…"
-              class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 resize-none"></textarea>
-            <div class="text-[10px] text-slate-500 mt-1" x-show="notesSaved">Saved to this device ✓</div>
-          </div>
-          <!-- quick actions -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button @click="logCheck(r)" class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition">Log check</button>
-            <button @click="adjustTarget(r)" class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition">Adjust target</button>
-            <button @click="roomModal=null; cmdOpen=true; cmdQuery='Demo:'" class="h-11 rounded-xl bg-amber-400/15 border border-amber-400/25 text-amber-300 text-xs font-medium hover:bg-amber-400/25 transition">Demo scenarios</button>
-            <button class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition flex items-center justify-center gap-1"><span x-html="icons.cam" class="w-4 h-4 block"></span> Camera</button>
-          </div>
-        </div>
-      </div>
-    </template>
-  </div>
-</div>
 
 <!-- ===================== BATCH MODAL ===================== -->
 <div x-show="batchModal" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="batchModal=null">
@@ -826,6 +858,92 @@
         </button>
       </template>
       <div x-show="cmdQuery && !cmdResults().length" class="px-3 py-6 text-center text-sm text-slate-500">No matches. Press Enter to ask AI.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PiP SENSOR INSPECTORS (drag · resize · stack up to 4) ===================== -->
+<template x-for="p in pips" :key="p.key">
+  <div class="fixed glass-strong rounded-2xl border border-white/15 shadow-2xl shadow-black/60 flex flex-col overflow-hidden"
+       :style="'left:'+p.x+'px;top:'+p.y+'px;width:'+p.w+'px;height:'+p.h+'px;z-index:'+p.z"
+       @pointerdown="frontPip(p)">
+    <div class="flex items-center gap-2 px-3 h-10 border-b border-white/10 cursor-move select-none shrink-0 bg-white/[0.04]"
+         style="touch-action:none" @pointerdown.prevent="startPipDrag($event,p)">
+      <span x-html="icons.activity" class="w-4 h-4 block text-emerald-400 shrink-0"></span>
+      <span class="text-xs font-semibold truncate" x-text="pipTitle(p)"></span>
+      <span class="text-[10px] text-slate-500 truncate hidden sm:block" x-text="pipBandLabel(p)"></span>
+      <button @pointerdown.stop @click="closePip(p.key)" class="ml-auto w-7 h-7 rounded-lg grid place-items-center bg-white/5 hover:bg-white/15 shrink-0" aria-label="Close inspector">
+        <span x-html="icons.x" class="w-4 h-4 block"></span>
+      </button>
+    </div>
+    <div class="flex items-center gap-3 px-3 py-1.5 text-[11px] text-slate-400 border-b border-white/8 shrink-0 overflow-x-auto scrollx whitespace-nowrap">
+      <span>now <span class="text-slate-100 font-bold text-[13px]" x-text="pipStats(p).now"></span> <span x-text="pipUnit(p)"></span></span>
+      <span class="text-slate-600">·</span><span>min <span class="text-slate-300" x-text="pipStats(p).min"></span></span>
+      <span>avg <span class="text-slate-300" x-text="pipStats(p).avg"></span></span>
+      <span>max <span class="text-slate-300" x-text="pipStats(p).max"></span></span>
+      <span class="text-slate-600 hidden sm:inline">·</span><span class="text-emerald-400/70 hidden sm:inline">green = OK band</span>
+    </div>
+    <div class="flex-1 min-h-0 relative p-2"><canvas :id="'pip-'+p.key"></canvas></div>
+    <div class="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize opacity-60 hover:opacity-100"
+         style="touch-action:none" @pointerdown.prevent="startPipResize($event,p)" aria-label="Resize">
+      <svg viewBox="0 0 20 20" class="w-full h-full text-slate-500"><path d="M17 9v8H9M17 13v4h-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+    </div>
+  </div>
+</template>
+
+<!-- ===================== TRUST PANEL (the ramp from raw-sensor habit to calm) ===================== -->
+<div x-show="trustOpen" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="trustOpen=false">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="trustOpen=false"></div>
+  <div class="absolute inset-x-0 bottom-0 md:inset-0 md:m-auto md:h-fit md:max-w-2xl md:rounded-3xl rounded-t-3xl glass-strong border-t md:border border-white/12 max-h-[92vh] overflow-y-auto scrollx"
+       x-transition:enter="transition duration-300" x-transition:enter-start="translate-y-full md:translate-y-4 md:opacity-0" x-transition:enter-end="translate-y-0 md:opacity-100">
+    <div class="sticky top-0 glass-strong border-b border-white/8 p-5 flex items-center gap-3 z-10">
+      <div class="w-10 h-10 rounded-xl grid place-items-center bg-emerald-500/15 ring-1 ring-emerald-400/30"><span x-html="icons.shield" class="w-5 h-5 block text-emerald-400"></span></div>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold">Why trust this dashboard?</div>
+        <div class="text-[11px] text-slate-400">Trust is earned with receipts and a track record — not asserted.</div>
+      </div>
+      <button @click="trustOpen=false" class="w-9 h-9 rounded-lg grid place-items-center bg-white/5 hover:bg-white/10"><span x-html="icons.x" class="w-5 h-5 block"></span></button>
+    </div>
+    <div class="p-5 space-y-5">
+      <!-- display mode -->
+      <div>
+        <div class="text-xs font-semibold text-slate-300 mb-2">Display mode</div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button @click="setTrust('raw')" class="text-left rounded-2xl p-3.5 border transition"
+                  :class="trustMode==='raw'?'bg-emerald-500/10 border-emerald-400/40':'bg-white/[0.03] border-white/10 hover:border-white/20'">
+            <div class="text-sm font-semibold">Raw</div>
+            <div class="text-[11px] text-slate-400 mt-1">Every number visible. Basement open. For day one — see that the raw data matches what you would read off the controllers.</div>
+          </button>
+          <button @click="setTrust('verify')" class="text-left rounded-2xl p-3.5 border transition"
+                  :class="trustMode==='verify'?'bg-emerald-500/10 border-emerald-400/40':'bg-white/[0.03] border-white/10 hover:border-white/20'">
+            <div class="text-sm font-semibold">Verify <span class="text-[10px] text-emerald-400 font-normal">default</span></div>
+            <div class="text-[11px] text-slate-400 mt-1">Inference leads, receipts attached: every tile names its source sensors, every advisory opens with its evidence chain.</div>
+          </button>
+          <button @click="setTrust('calm')" class="text-left rounded-2xl p-3.5 border transition"
+                  :class="trustMode==='calm'?'bg-emerald-500/10 border-emerald-400/40':'bg-white/[0.03] border-white/10 hover:border-white/20'">
+            <div class="text-sm font-semibold">Calm</div>
+            <div class="text-[11px] text-slate-400 mt-1">The destination. Plant truth only; raw data one click away, never in your face. Graduate here once the track record has earned it.</div>
+          </button>
+        </div>
+      </div>
+      <!-- track record -->
+      <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+        <div class="text-xs font-semibold text-slate-300 mb-3">Track record — last 30 days</div>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div><div class="text-2xl font-bold" x-text="ledger.raised"></div><div class="text-[11px] text-slate-500">advisories raised</div></div>
+          <div><div class="text-2xl font-bold text-emerald-400" x-text="ledger.confirmed"></div><div class="text-[11px] text-slate-500">confirmed real</div></div>
+          <div><div class="text-2xl font-bold text-amber-400" x-text="ledger.falseAlarms"></div><div class="text-[11px] text-slate-500">false alarms</div></div>
+        </div>
+        <div class="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden"><div class="h-full bg-gradient-to-r from-emerald-400 to-emerald-600" :style="'width:'+hitRate()+'%'"></div></div>
+        <div class="text-[11px] text-slate-400 mt-2"><span class="text-emerald-400 font-semibold" x-text="hitRate()+'%'"></span> of acted-on advisories were real. Marking one “False alarm” lowers this number publicly — the dashboard keeps itself honest.</div>
+      </div>
+      <!-- how to audit -->
+      <div class="text-[12px] text-slate-400 leading-relaxed space-y-1.5">
+        <div>· Every advisory carries an <span class="text-slate-200">evidence chain</span> — the exact sensor values behind the claim.</div>
+        <div>· Every inferred tile names its <span class="text-slate-200">source sensors</span> (Verify mode) — click any raw sensor for its full graph with the OK band drawn in.</div>
+        <div>· Raw readings are never deleted, only demoted: <span class="text-slate-200">the basement</span> holds every channel and actuator.</div>
+        <div>· When a probe flatlines the system <span class="text-slate-200">says it is blind</span> instead of inferring from garbage.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -922,12 +1040,12 @@ const CHARTS = {};               // Chart.js instances, keyed by canvas id
 let TICK_ID = 0;
 
 function ensureHist(id){
-  if(!HIST[id]) HIST[id] = {vpd:[],temp:[],rh:[],ec:[],cwsi:[],vwc:[]};
+  if(!HIST[id]) HIST[id] = {vpd:[],temp:[],rh:[],ec:[],cwsi:[],vwc:[],co2:[],ppfd:[]};
   return HIST[id];
 }
 function pushHist(r){
   const h = ensureHist(r.id);
-  ["vpd","temp","rh","ec","cwsi","vwc"].forEach(k=>{
+  ["vpd","temp","rh","ec","cwsi","vwc","co2","ppfd"].forEach(k=>{
     h[k].push(r[k]); if(h[k].length>HIST_MAX) h[k].shift();
   });
 }
@@ -940,6 +1058,8 @@ function seedHist(r){
     h.ec.push(+(r.ec + Math.sin(i/9)*0.15).toFixed(2));
     h.cwsi.push(+Math.max(0,(r.cwsi + Math.sin(i/7)*0.03)).toFixed(2));
     h.vwc.push(+(r.vwc + Math.sin(i/4)*3).toFixed(1));
+    h.co2.push(Math.round(r.co2 + Math.sin(i/6)*40 + (Math.random()-.5)*15));
+    h.ppfd.push(r.lightsOn ? Math.max(0,Math.round(r.ppfd + Math.sin(i/8)*25 + (Math.random()-.5)*10)) : 0);
   }
 }
 function slope(arr, n){          // simple per-sample slope over the last n points
@@ -992,7 +1112,7 @@ const RULES = [
     const persistent = Math.round(r.sensors.cornerDeltaMins) >= 30;
     return {
       sev: r.sensors.cornerDelta >= 3.5 ? "crit" : "warn",
-      icon:"thermo", confidence: persistent ? "high" : "med",
+      icon:"thermo", metric:"temp", confidence: persistent ? "high" : "med",
       title:"Corner of the room is running hot",
       detail:`Back-left canopy is ${r.sensors.cornerDelta.toFixed(1)} °C over the room average and has been for ${Math.round(r.sensors.cornerDeltaMins)} min. VPD there is effectively ~${(r.vpd+0.35).toFixed(2)} kPa — those plants transpire against drier air and stress first.`,
       action:"Check AC throw and aim a circulation fan at the back-left corner. Do not raise room RH — that over-humidifies the healthy 80% of canopy. Re-check the gradient in 30 min.",
@@ -1006,7 +1126,7 @@ const RULES = [
     if(!zs.length || r.equip.pumpW < 60) return null;
     if(zs.some(z=>z.valve==="open")) return null;
     return {
-      sev:"crit", icon:"power", confidence:"high",
+      sev:"crit", icon:"power", metric:"db", confidence:"high",
       title:"Irrigation pump is dead-heading",
       detail:`The ${r.name} feed pump is drawing ${r.equip.pumpW} W with all ${zs.length} zone valves closed. It is pushing against a closed manifold — heat, pressure and a dead pump if it keeps running.`,
       action:"Kill the pump now, then check valve control: a stuck relay or a missed open command. Restart only after one valve confirms open.",
@@ -1018,7 +1138,7 @@ const RULES = [
   ({r})=>{
     if(r.lightsOn || r.dryRoom || r.co2 < 900) return null;
     return {
-      sev:"warn", icon:"wind", confidence: r.equip.co2Valve==="open" ? "high" : "med",
+      sev:"warn", icon:"wind", metric:"co2", confidence: r.equip.co2Valve==="open" ? "high" : "med",
       title:"CO₂ climbing in the dark",
       detail:`${r.name} is dark but CO₂ reads ${Math.round(r.co2)} ppm (expect near-ambient overnight). ${r.equip.co2Valve==="open" ? "The enrichment valve reports OPEN — it should have closed at lights-off." : "Enrichment valve reports closed, so suspect a leaking solenoid or a dead exhaust fan."} Plants do not use CO₂ in the dark — this is pure waste and a safety smell.`,
       action: r.equip.co2Valve==="open" ? "Close the CO₂ solenoid manually and inspect the lights-off automation before the next dark cycle." : "Verify the solenoid seals when closed and confirm the exhaust fan runs on its overnight schedule.",
@@ -1034,7 +1154,7 @@ const RULES = [
     const bad = ratio < 0.4;
     return {
       sev: bad ? "warn" : "watch",
-      icon:"drop", confidence: bad ? "high" : "med",
+      icon:"drop", metric:"db", confidence: bad ? "high" : "med",
       title: bad ? "Dryback has stalled" : `${r.name}: shallow dryback`,
       detail:`Dryback is ${r.dryback.toFixed(1)}% against a ${b.drybackTarget}% target (rate ${d.dryback.rate}%/hr). A wet substrate never pulls EC toward target and invites root-zone pathogens.`,
       action: bad ? "Cut one P2 maintenance shot today and confirm the last-shot cutoff time. If VWC still will not fall, check for a weeping valve." : "No action yet — flagged so the P3 window gets watched tonight.",
@@ -1050,7 +1170,7 @@ const RULES = [
     const wet = r.dryback < b.drybackTarget*0.6;
     if(!(high && rising && wet)) return null;
     return {
-      sev:"warn", icon:"salt", confidence:"high",
+      sev:"warn", icon:"salt", metric:"ec", confidence:"high",
       title:"EC stacking with no dryback to flush it",
       detail:`Pore EC is ${r.ec.toFixed(1)} mS/cm (band ${b.ec[0]}–${b.ec[1]}) and still climbing, while dryback sits at ${r.dryback.toFixed(1)}% of a ${b.drybackTarget}% target. Salt is accumulating faster than the root zone can clear it — osmotic stress follows.`,
       action:`Push one larger P2 shot (~5% volume) to drive runoff and knock pore EC back under ${b.ec[1]} mS/cm, then restore the dryback window.`,
@@ -1067,7 +1187,7 @@ const RULES = [
     if(!dead.length){ r.blind=false; return null; }
     r.blind = true;
     return {
-      sev:"warn", icon:"eye", confidence:"high",
+      sev:"warn", icon:"eye", metric:"ec", confidence:"high",
       title:`${dead.join(" + ")} sensor flatlined — treat as blind`,
       detail:`The ${r.name} ${dead.join(" and ")} channel${dead.length>1?"s have":" has"} reported an identical value for 8 straight samples. That is a dead probe, not a stable root zone. Substrate inferences for this room are suppressed until it moves.`,
       action:"Reseat the probe cable and power-cycle the sensor node. If it stays flat, swap the probe — do not steer on a frozen number.",
@@ -1083,7 +1203,7 @@ const RULES = [
     const dry = mean(h.vpd,6) > b.vpd[1];
     if(!(over && stressed && dry)) return null;
     return {
-      sev:"warn", icon:"sun", confidence:"high",
+      sev:"warn", icon:"sun", metric:"ppfd", confidence:"high",
       title:"Canopy is losing the light-load race",
       detail:`PPFD ${Math.round(r.ppfd)} µmol sits over the ${b.ppfd[1]} band ceiling while CWSI has risen to ${r.cwsi.toFixed(2)} and VPD has averaged ${mean(h.vpd,6).toFixed(2)} kPa. The plant cannot transpire fast enough for the photons it is being fed.`,
       action:`Dim to ~${Math.round(b.ppfd[1]*0.92)} µmol or pull VPD back to ${b.vpd[1]} kPa max. Re-check CWSI in 20 min — it should fall within two samples.`,
@@ -1096,7 +1216,7 @@ const RULES = [
     if(r.dryRoom || !r.lightsOn || !r.irr) return null;
     if(r.irr.lastShotMin <= r.irr.expectedIntervalMin * 1.8) return null;
     return {
-      sev:"crit", icon:"clock", confidence:"high",
+      sev:"crit", icon:"clock", metric:"db", confidence:"high",
       title:"Irrigation engine has gone quiet",
       detail:`${r.name} last fired a shot ${Math.round(r.irr.lastShotMin)} min ago against an expected ~${r.irr.expectedIntervalMin} min P2 cadence. The steering engine is stalled or its automation is wedged — VWC will fall through the P3 floor if this holds.`,
       action:"Open the irrigation controller and check the engine heartbeat. Fire one manual shot now to buy time, then find why the scheduler stopped.",
@@ -1110,7 +1230,7 @@ const RULES = [
     const m = mean(h.vpd,6);
     if(m <= b.vpd[1] + 0.1) {
       if(m < b.vpd[0] - 0.1) return {
-        sev:"watch", icon:"wind", confidence:"med",
+        sev:"watch", icon:"wind", metric:"vpd", confidence:"med",
         title:`${r.name}: VPD sagging under the band`,
         detail:`VPD has averaged ${m.toFixed(2)} kPa over the last 6 samples against a ${b.vpd[0]}–${b.vpd[1]} band. Low VPD slows transpiration and invites mildew in a dense canopy.`,
         action:"Nudge RH down 3–4% or add 0.5 °C. Watching, not urgent.",
@@ -1121,7 +1241,7 @@ const RULES = [
     const bad = m > b.vpd[1] + 0.25;
     return {
       sev: bad ? "warn" : "watch",
-      icon:"wind", confidence: bad ? "high" : "med",
+      icon:"wind", metric:"vpd", confidence: bad ? "high" : "med",
       title: bad ? "VPD has been over the band for a while" : `${r.name}: VPD drifting high`,
       detail:`VPD has averaged ${m.toFixed(2)} kPa over the last 6 samples (band ${b.vpd[0]}–${b.vpd[1]}). Sustained, stomata close and stacking slows — this is a trajectory call, not a single spike.`,
       action:`Raise RH 4–6% or trim leaf-zone airflow; aim ${((b.vpd[0]+b.vpd[1])/2).toFixed(1)} kPa.`,
@@ -1134,7 +1254,7 @@ const RULES = [
     if(r.dryRoom || !r.lightsOn || b.co2[0]===0) return null;
     if(r.co2 >= b.co2[0]*0.85) return null;
     return {
-      sev:"watch", icon:"activity", confidence:"med",
+      sev:"watch", icon:"activity", metric:"co2", confidence:"med",
       title:`${r.name}: CO₂ under target with lights on`,
       detail:`CO₂ is ${Math.round(r.co2)} ppm against a ${b.co2[0]}–${b.co2[1]} enrichment band. Free growth being left on the table if the tank or solenoid is starving the room.`,
       action:"Check tank level and solenoid duty on the next walk-through.",
@@ -1146,7 +1266,7 @@ const RULES = [
   ({r,b})=>{
     if(r.stageKey!=="finish" || r.ec > 2.5) return null;
     return {
-      sev:"watch", icon:"check", confidence:"high",
+      sev:"watch", icon:"check", metric:"ec", confidence:"high",
       title:`${r.name}: EC low — flush on track`,
       detail:`Pore EC ${r.ec.toFixed(1)} mS/cm — expected during flush. Dryback widening as planned. On track for finish.`,
       action:"None. Informational.",
@@ -1264,6 +1384,60 @@ function mountRoomHistChart(roomId){
         y1:{position:"right",grid:{display:false},ticks:{color:"#155e75",font:{size:10}}}}}});
 }
 
+/* ---------- PiP sensor inspector: one floating, draggable, resizable graph per sensor ---------- */
+const PIPMETRICS = {
+  vpd:  { label:"VPD",               unit:"kPa",      ch:"vpd",  band:(b)=>b.vpd,  dp:2 },
+  temp: { label:"Temperature",       unit:"°C",       ch:"temp", band:(b)=>b.temp, dp:1 },
+  rh:   { label:"Relative humidity", unit:"%",        ch:"rh",   band:(b)=>b.rh,   dp:0 },
+  cwsi: { label:"Plant stress",      unit:"CWSI",     ch:"cwsi", band:(b)=>[0,b.cwsiMax], dp:2 },
+  ec:   { label:"Pore EC",           unit:"mS/cm",    ch:"ec",   band:(b)=>b.ec,   dp:2 },
+  db:   { label:"Substrate VWC",     unit:"%",        ch:"vwc",  band:null,        dp:1 },
+  co2:  { label:"CO₂",               unit:"ppm",      ch:"co2",  band:(b)=>b.co2,  dp:0 },
+  ppfd: { label:"PPFD",              unit:"µmol/m²/s",ch:"ppfd", band:(b)=>b.ppfd, dp:0 },
+};
+// draws the OK band straight onto the chart — the envelope is visible, not implied
+const okBandPlugin = {
+  id:"okBand",
+  beforeDatasetsDraw(chart){
+    const band = chart.options.okBand; if(!band) return;
+    const {ctx, chartArea, scales} = chart; if(!chartArea || !scales.y) return;
+    const yHi = scales.y.getPixelForValue(band[1]);
+    const yLo = scales.y.getPixelForValue(band[0]);
+    ctx.save();
+    ctx.fillStyle = "rgba(16,185,129,0.08)";
+    ctx.fillRect(chartArea.left, yHi, chartArea.right-chartArea.left, yLo-yHi);
+    ctx.strokeStyle = "rgba(16,185,129,0.3)";
+    ctx.setLineDash([4,4]); ctx.lineWidth = 1;
+    [yLo,yHi].forEach(y=>{ ctx.beginPath(); ctx.moveTo(chartArea.left,y); ctx.lineTo(chartArea.right,y); ctx.stroke(); });
+    ctx.restore();
+  }
+};
+function mountPipChart(pip, band){
+  const c=document.getElementById("pip-"+pip.key); if(!c) return;
+  killChart("pip-"+pip.key);
+  const m=PIPMETRICS[pip.metric];
+  const data=ensureHist(pip.roomId)[m.ch].slice(-72);
+  const opts={responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:400},
+    interaction:{mode:"index",intersect:false},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:"#11161d",borderColor:"#243",borderWidth:1,
+      callbacks:{label:(t)=>t.parsed.y+" "+m.unit}}},
+    scales:{x:{display:false},y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10}}}}};
+  if(band){ opts.okBand=band;
+    opts.scales.y.suggestedMin=Math.min(band[0], Math.min(...data))-(band[1]-band[0])*0.15;
+    opts.scales.y.suggestedMax=Math.max(band[1], Math.max(...data))+(band[1]-band[0])*0.15; }
+  CHARTS["pip-"+pip.key]=new Chart(c,{type:"line",
+    data:{labels:data.map(()=>""),datasets:[{data,borderColor:"#34d399",borderWidth:2,tension:.35,pointRadius:0,fill:true,
+      backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,ctx.chart.height||200);g.addColorStop(0,"#34d39930");g.addColorStop(1,"#34d39900");return g;}}]},
+    options:opts, plugins:[okBandPlugin]});
+}
+function updatePipChart(pip){
+  const ch=CHARTS["pip-"+pip.key]; if(!ch) return;
+  const m=PIPMETRICS[pip.metric];
+  const data=ensureHist(pip.roomId)[m.ch].slice(-72);
+  ch.data.datasets[0].data=data; ch.data.labels=data.map(()=>"");
+  ch.update("none");
+}
+
 function worse(a,b){ const o={optimal:0,ok:0,watch:0,warn:1,crit:2}; return o[b]>o[a]?b:a; }
 
 /* =====================================================================================
@@ -1309,6 +1483,7 @@ document.addEventListener("alpine:init", () => {
       settings:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`,
       flask:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg>`,
       layers:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 8.5 4.72a1 1 0 0 1 0 1.75L12 13 3.5 8.47a1 1 0 0 1 0-1.75L12 2z"/><path d="m3.5 12.5 8.5 4.7 8.5-4.7"/><path d="m3.5 17 8.5 4.7L20.5 17"/></svg>`,
+      shield:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>`,
     },
 
     /* ---------- navigation ---------- */
@@ -1333,11 +1508,16 @@ document.addEventListener("alpine:init", () => {
     /* ---------- live state ---------- */
     now:Date.now(), lastUpdated:Date.now(),
     cmdOpen:false, cmdQuery:"", aiOpen:false, aiInput:"", aiThinking:false,
-    roomModal:null, batchModal:null, bandsOpen:false, basementOpen:false,
+    currentRoom:null, roomReturn:"dashboard", batchModal:null, bandsOpen:false, basementOpen:false,
     trendRoom:"flower-a", trendRange:"24h",
     batchFilter:"", batchSort:{k:"harvest",dir:1},
     notes:{}, notesSaved:false, toasts:[],
     bandsDraft:null,
+    /* PiP sensor inspectors: floating, draggable, resizable — several can be open at once */
+    pips:[], pipZ:60,
+    /* trust ramp: calm = inference only · verify = inference + receipts · raw = everything */
+    trustMode:"verify", trustOpen:false,
+    ledger:{raised:31, confirmed:26, falseAlarms:2},
 
     /* ---------- seed data (real F2 / Athena-informed) ----------
        stageKey maps each room onto its expected envelope in BANDS.
@@ -1419,9 +1599,16 @@ document.addEventListener("alpine:init", () => {
       this.aiMessages=[{role:"ai",text:"Facility context loaded — 6 rooms, 5 active batches. Ask me anything, or tap a suggestion. I read every sensor and every batch so you do not have to."}];
       this.$nextTick(()=>{ this.mountCharts(); });
       this.$watch("view",()=> this.$nextTick(()=>this.mountCharts()));
-      this.$watch("roomModal",v=>{ if(v) this.$nextTick(()=>mountRoomHistChart(v)); });
+      this.$watch("currentRoom",v=>{ if(v) this.$nextTick(()=>mountRoomHistChart(v)); });
       this.$watch("cmdOpen",v=>{ if(v) this.$nextTick(()=>this.$refs.cmd&&this.$refs.cmd.focus()); });
       try{ this.notes = JSON.parse(localStorage.getItem("la.notes"))||{}; }catch(e){}
+      try{ const t=localStorage.getItem("la.trust"); if(["calm","verify","raw"].includes(t)) this.trustMode=t; }catch(e){}
+      try{ const l=JSON.parse(localStorage.getItem("la.ledger")); if(l && l.raised) this.ledger=l; }catch(e){}
+      if(this.trustMode==="raw") this.basementOpen=true;
+      window.addEventListener("resize", ()=>{ this.pips.forEach(p=>{
+        p.w=Math.min(p.w, window.innerWidth-20);
+        p.x=Math.max(0, Math.min(p.x, window.innerWidth-p.w));
+        p.y=Math.max(0, Math.min(p.y, window.innerHeight-60)); }); });
       TICK_ID = setInterval(()=>this.tick(), 6000);
     },
 
@@ -1465,7 +1652,11 @@ document.addEventListener("alpine:init", () => {
       });
       // merge: keep acknowledged, add new, drop resolved
       const acked = new Set(this.alerts.filter(a=>a.acked).map(a=>a.id));
-      this.alerts = advisories.map(a=>({ ...a, acked:acked.has(a.id), showEv:(this.alerts.find(x=>x.id===a.id)||{}).showEv||false }));
+      const known = new Set(this.alerts.map(a=>a.id));
+      const fresh = advisories.filter(a=>!known.has(a.id)).length;
+      if(fresh && this.alerts.length){ this.ledger.raised += fresh; this.saveLedger(); }
+      this.alerts = advisories.map(a=>({ ...a, acked:acked.has(a.id),
+        showEv:(this.alerts.find(x=>x.id===a.id)||{}).showEv ?? (this.trustMode!=="calm") }));
       this.watch = watchlist;
       this.headline = computeHeadline(this.alerts.filter(a=>!a.acked), this.watch, this.rooms);
       this.insights = this.buildInsights();
@@ -1616,6 +1807,7 @@ document.addEventListener("alpine:init", () => {
       }
       if(this.view==="dashboard") mountEnvChart(this.trendRoom, this.trendRange);
       if(this.view==="energy") mountPowerChart();
+      if(this.view==="room" && this.currentRoom) mountRoomHistChart(this.currentRoom);
     },
     updateCharts(){
       const col=(s)=> s==="crit"?"#f87171":s==="warn"?"#fbbf24":"#34d399";
@@ -1624,6 +1816,7 @@ document.addEventListener("alpine:init", () => {
         ["dspark-","rspark-"].forEach(p=> updateSpark(p+r.id, data, col(r.status)));
       });
       if(this.view==="dashboard") updateEnvChart(this.trendRoom, this.trendRange);
+      this.pips.forEach(p=>updatePipChart(p));
     },
     rebuildEnv(){ mountEnvChart(this.trendRoom, this.trendRange); },
 
@@ -1640,10 +1833,80 @@ document.addEventListener("alpine:init", () => {
     sortBatches(k){ if(this.batchSort.k===k) this.batchSort.dir*=-1; else this.batchSort={k,dir:1}; },
 
     /* ---------- actions ---------- */
-    go(v){ this.view=v; window.scrollTo({top:0,behavior:prefersReduced()?"auto":"smooth"}); },
-    openRoom(id){ this.roomModal=id; },
-    ackAlert(id){ const a=this.alerts.find(x=>x.id===id); if(a){a.acked=true; this.headline=computeHeadline(this.alerts.filter(x=>!x.acked),this.watch,this.rooms); this.toast("Advisory acknowledged");} },
-    investigate(a){ const r=this.rooms.find(x=>x.name===a.room); if(r){ this.roomModal=r.id; } else this.aiOpen=true; },
+    go(v){ this.view=v; if(v!=="room") this.currentRoom=null; window.scrollTo({top:0,behavior:prefersReduced()?"auto":"smooth"}); },
+    openRoom(id){ if(this.view!=="room") this.roomReturn=this.view; this.currentRoom=id; this.view="room";
+      window.scrollTo({top:0,behavior:prefersReduced()?"auto":"smooth"}); },
+    closeRoom(){ this.view=this.roomReturn||"dashboard"; this.currentRoom=null; },
+    cr(){ return this.room(this.currentRoom); },
+    ackAlert(id){ const a=this.alerts.find(x=>x.id===id); if(a){a.acked=true; this.ledger.confirmed++; this.saveLedger();
+      this.headline=computeHeadline(this.alerts.filter(x=>!x.acked),this.watch,this.rooms); this.toast("Advisory acknowledged — logged as confirmed");} },
+    falseAlarm(id){ const a=this.alerts.find(x=>x.id===id); if(a){a.acked=true; this.ledger.falseAlarms++; this.saveLedger();
+      this.headline=computeHeadline(this.alerts.filter(x=>!x.acked),this.watch,this.rooms); this.toast("Logged as false alarm — this trains the rule");} },
+    investigate(a){ const r=this.rooms.find(x=>x.name===a.room); if(r){ this.openRoom(r.id); } else this.aiOpen=true; },
+
+    /* ---------- trust ramp ---------- */
+    setTrust(m){
+      this.trustMode=m;
+      try{ localStorage.setItem("la.trust",m); }catch(e){}
+      if(m==="raw") this.basementOpen=true;
+      this.alerts.forEach(a=>{ a.showEv = m!=="calm"; });
+      this.toast(m==="calm"?"Calm mode — inference only":m==="verify"?"Verify mode — every claim shows its receipts":"Raw mode — nothing hidden");
+    },
+    saveLedger(){ try{ localStorage.setItem("la.ledger",JSON.stringify(this.ledger)); }catch(e){} },
+    hitRate(){ const t=this.ledger.confirmed+this.ledger.falseAlarms; return t? Math.round(this.ledger.confirmed/t*100) : 100; },
+    tileSources(k){
+      return ({ stress:"leaf-temp IR + air temp + RH", transp:"VPD position + VWC draw-down + PPFD",
+        leafvpd:"air temp + RH + leaf offset", dryback:"VWC probe, peak-to-now", ec:"3 substrate probes, fused",
+        flags:"VWC floor + PPFD ceiling + CWSI" })[k]||"";
+    },
+
+    /* ---------- PiP sensor inspectors ---------- */
+    openPip(roomId, metric){
+      if(!PIPMETRICS[metric]) return;
+      const key=roomId+"-"+metric;
+      const existing=this.pips.find(p=>p.key===key);
+      if(existing){ existing.z=++this.pipZ; return; }
+      if(this.pips.length>=4){ this.toast("Four inspectors open — close one first"); return; }
+      const n=this.pips.length;
+      const mobile=window.innerWidth<640;
+      const p={ key, roomId, metric, z:++this.pipZ,
+        x: mobile? 8 : Math.min(window.innerWidth-460, 90+n*44),
+        y: mobile? 70+n*40 : 90+n*44,
+        w: mobile? Math.min(360,window.innerWidth-16) : 440, h: mobile? 240 : 300 };
+      this.pips.push(p);
+      this.$nextTick(()=>{ const r=this.room(roomId); const m=PIPMETRICS[metric];
+        mountPipChart(p, m.band ? m.band(bandFor(r)) : null); });
+    },
+    closePip(key){ killChart("pip-"+key); this.pips=this.pips.filter(p=>p.key!==key); },
+    frontPip(p){ p.z=++this.pipZ; },
+    pipTitle(p){ const r=this.room(p.roomId); return r.name+" · "+PIPMETRICS[p.metric].label; },
+    pipUnit(p){ return PIPMETRICS[p.metric].unit; },
+    pipBandLabel(p){ const m=PIPMETRICS[p.metric]; if(!m.band) return "no band — raw channel";
+      const b=m.band(bandFor(this.room(p.roomId))); return "band "+b[0]+"–"+b[1]+" "+m.unit; },
+    pipStats(p){
+      const m=PIPMETRICS[p.metric];
+      const arr=ensureHist(p.roomId)[m.ch].slice(-72);
+      if(!arr.length) return {now:"—",min:"—",max:"—",avg:"—"};
+      const f=(v)=>(+v).toFixed(m.dp);
+      return { now:f(arr[arr.length-1]), min:f(Math.min(...arr)), max:f(Math.max(...arr)),
+               avg:f(arr.reduce((s,v)=>s+v,0)/arr.length) };
+    },
+    startPipDrag(e,p){
+      this.frontPip(p);
+      const dx=e.clientX-p.x, dy=e.clientY-p.y;
+      const mv=(ev)=>{ p.x=Math.max(-p.w+80,Math.min(window.innerWidth-60, ev.clientX-dx));
+                       p.y=Math.max(0,Math.min(window.innerHeight-40, ev.clientY-dy)); };
+      const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up); };
+      window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+    },
+    startPipResize(e,p){
+      this.frontPip(p); e.stopPropagation();
+      const dw=p.w-e.clientX, dh=p.h-e.clientY;
+      const mv=(ev)=>{ p.w=Math.max(260,Math.min(window.innerWidth-20, dw+ev.clientX));
+                       p.h=Math.max(180,Math.min(window.innerHeight-40, dh+ev.clientY)); };
+      const up=()=>{ window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",up); };
+      window.addEventListener("pointermove",mv); window.addEventListener("pointerup",up);
+    },
     openInsight(ins){ this.aiOpen=true; this.aiMessages.push({role:"user",text:ins.title}); this.aiThinking=true;
       setTimeout(()=>{ this.aiThinking=false; this.aiMessages.push({role:"ai",text:ins.body}); this.scrollAI(); },700); this.scrollAI(); },
     logWeight(){ this.trim.kg=+Math.min(this.trim.target,this.trim.kg+0.5).toFixed(1); this.toast("+0.5 kg logged ("+this.trim.kg+" kg total)"); },
@@ -1700,7 +1963,7 @@ document.addEventListener("alpine:init", () => {
       if(e.key==="/"&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){ e.preventDefault(); this.cmdOpen=true; } },
 
     /* ---------- format ---------- */
-    currentTitle(){ return ({dashboard:"Facility Overview",rooms:"Rooms & Zones",batches:"Batches & Harvest",irrigation:"Irrigation & Environment",energy:"Energy & Resources",compliance:"Compliance & Reports",alerts:"Alerts"})[this.view]||"Legacy Ag"; },
+    currentTitle(){ if(this.view==="room" && this.cr()) return this.cr().name; return ({dashboard:"Facility Overview",rooms:"Rooms & Zones",batches:"Batches & Harvest",irrigation:"Irrigation & Environment",energy:"Energy & Resources",compliance:"Compliance & Reports",alerts:"Alerts"})[this.view]||"Legacy Ag"; },
     sevBg(s){ return s==="ok"||s==="optimal"?"bg-emerald-500/15":s==="warn"?"bg-amber-400/15":"bg-red-500/15"; },
     sevText(s){ return s==="ok"||s==="optimal"?"text-emerald-400":s==="warn"?"text-amber-400":"text-red-400"; },
     pillClass(s){ return s==="optimal"?"bg-emerald-500/15 text-emerald-300":s==="warn"?"bg-amber-400/15 text-amber-300":"bg-red-500/15 text-red-300"; },

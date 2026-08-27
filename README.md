@@ -16,7 +16,7 @@ Part of the grow-room field-guide series.
 | File | What it is |
 |---|---|
 | **[`index.html`](https://jaketherabbit.github.io/plant-state-dashboard/)** | The white paper as a site — philosophy, architecture, worked scenarios, screenshots, and the build prompt. |
-| **[`demo.html`](https://jaketherabbit.github.io/plant-state-dashboard/demo.html)** | A **live, interactive** multi-room facility dashboard (seed data, runs in your browser) — the spec's reference build. A pure rules engine fuses signals into advisories with evidence chains; raw sensors live in a collapsed "basement"; target bands are editable config. Press `⌘K` and type `Demo:` to trigger the encoded failure modes (pump dead-head, CO₂-in-dark, probe flatline…). |
+| **[`demo.html`](https://jaketherabbit.github.io/plant-state-dashboard/demo.html)** | A **live, interactive** multi-room facility dashboard (seed data, runs in your browser) — the spec's reference build. A pure rules engine fuses signals into advisories with evidence chains; raw sensors live in a collapsed "basement"; target bands are editable config. Press `⌘K` and type `Demo:` to trigger the encoded failure modes (pump dead-head, CO₂-in-dark, probe flatline…). Rooms open full-width dashboards; **every raw reading is clickable** and opens a draggable, resizable PiP graph with the OK band drawn in. A **trust ramp** (Raw / Verify / Calm modes + a public advisory track record) lets sensor-watchers verify their way to the calm view. |
 | `whitepaper.md` | The white paper in Markdown. |
 | `plant-state-dashboard-spec.md` | The full build spec + a copy-paste generation prompt for producing your own dashboards. |
 | `assets/` | Reference screenshots (facility desktop, single-room live, mobile). |
