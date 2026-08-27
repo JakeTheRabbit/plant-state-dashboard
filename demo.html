@@ -13,8 +13,14 @@
     • Calm by default — exception-based. The facility headline tells the truth in one glance.
     • Advisories are prescriptive: next step + confidence + evidence (not bare threshold alarms).
     • A "watchlist" surfaces leading indicators (drifting, not yet wrong).
-    • Raw sensor grids are demoted into room detail — meaning lives on the surface.
-  Self-contained single file. Deps: Tailwind v4 browser, Alpine 3, Chart.js 4 (CDN). Seed data simulates live ops.
+    • Raw sensors live in "the basement" — demoted, never deleted. Meaning lives on the surface.
+    • A pure RULES array fuses signals into advisories with an evidence chain (see the engine
+      at the top of the script). Target bands are editable config, judged per stage.
+    • The system knows when it is blind: a flatlined probe raises its own advisory and
+      suppresses substrate inferences for that room.
+  Self-contained single file. Deps: Tailwind v4 browser, Alpine 3, Chart.js 4 (CDN). Seed data simulates
+  live ops; ⌘K → "Demo:" scenarios trigger each encoded failure mode (dead-head, CO₂-in-dark, flatline…).
+  Charts + history buffers deliberately live in MODULE scope, outside Alpine reactivity (spec §6.1).
 -->
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -125,6 +131,12 @@
           <kbd class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-white/10 border border-white/10">⌘K</kbd>
         </button>
 
+        <!-- target bands (editable envelopes, spec §4) -->
+        <button @click="openBands()" class="w-10 h-10 grid place-items-center rounded-xl glass hover:border-white/20 transition lift"
+                aria-label="Edit target bands" title="Target bands">
+          <span x-html="icons.settings" class="w-5 h-5 block text-slate-300"></span>
+        </button>
+
         <!-- notifications -->
         <button @click="go('alerts')" class="relative w-10 h-10 grid place-items-center rounded-xl glass hover:border-white/20 transition lift"
                 aria-label="Alerts">
@@ -149,6 +161,16 @@
 
       <!-- ============ DASHBOARD ============ -->
       <section x-show="view==='dashboard'" class="fade-enter space-y-6">
+
+        <!-- blind-mode banner (spec §6.5 — the system must know when it is blind) -->
+        <div x-show="blindRooms().length" x-transition.opacity
+             class="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4 flex items-start gap-3">
+          <span x-html="icons.eye" class="w-5 h-5 block text-amber-400 mt-0.5 shrink-0"></span>
+          <div class="text-sm">
+            <span class="font-semibold text-amber-300">Telemetry degraded — treat as partially blind.</span>
+            <span class="text-slate-300"> Frozen substrate probe in <span x-text="blindRooms().map(r=>r.name).join(', ')"></span>; substrate inferences for that room are suspended until the probe moves. Last good readings still shown.</span>
+          </div>
+        </div>
 
         <!-- facility headline (calm, exception-based) -->
         <div class="glass-strong rounded-3xl p-5 md:p-6 relative overflow-hidden"
@@ -288,9 +310,14 @@
                         <span x-html="icons.arrow" class="w-4 h-4 block text-emerald-400 mt-0.5 shrink-0"></span>
                         <span><span class="text-slate-300 font-medium">Next step:</span> <span class="text-slate-400" x-text="a.action"></span></span>
                       </div>
+                      <div x-show="a.showEv" x-transition.opacity class="mt-2 p-2.5 rounded-lg bg-black/30 border border-white/8">
+                        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Evidence chain</div>
+                        <code class="text-[11px] text-cyan-300/80 break-all leading-relaxed" x-text="a.evidence"></code>
+                      </div>
                       <div class="mt-2.5 flex items-center gap-2 flex-wrap">
                         <button @click="ackAlert(a.id)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium transition border border-white/10">Acknowledge</button>
                         <button @click="investigate(a)" class="h-9 px-3 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-xs font-medium transition border border-emerald-400/20">Investigate</button>
+                        <button @click="a.showEv=!a.showEv" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium transition border border-white/10 text-slate-400" x-text="a.showEv?'Hide evidence':'Evidence'"></button>
                         <span class="ml-auto text-[11px] text-slate-500 inline-flex items-center gap-1">
                           <span class="w-1.5 h-1.5 rounded-full" :class="a.confidence==='high'?'bg-emerald-400':a.confidence==='med'?'bg-amber-400':'bg-slate-500'"></span>
                           confidence: <span x-text="a.confidence"></span>
@@ -323,6 +350,60 @@
                 </div>
               </template>
               <div x-show="!watch.length" class="p-6 text-center text-sm text-slate-500">Nothing drifting.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- the basement: raw readings, demoted but never deleted (spec §2 zone ④) -->
+        <div class="glass rounded-2xl overflow-hidden">
+          <button @click="basementOpen=!basementOpen"
+                  class="w-full flex items-center gap-2 p-4 text-left hover:bg-white/[0.03] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60">
+            <span x-html="icons.layers" class="w-4 h-4 block text-slate-500"></span>
+            <span class="text-sm font-semibold text-slate-300">The basement — raw readings</span>
+            <span class="text-[11px] text-slate-500">every sensor and actuator, no interpretation</span>
+            <span x-html="basementOpen ? icons.collapse : icons.expand" class="w-4 h-4 block text-slate-500 ml-auto rotate-90"></span>
+          </button>
+          <div x-show="basementOpen" x-transition.opacity class="border-t border-white/8">
+            <div class="overflow-x-auto scrollx">
+              <table class="w-full text-[13px] min-w-[900px]">
+                <thead class="text-[10px] uppercase tracking-wider text-slate-500 bg-white/[0.02]">
+                  <tr>
+                    <th class="text-left font-medium px-4 py-2">Room</th>
+                    <th class="text-right font-medium px-3 py-2">Temp °C</th>
+                    <th class="text-right font-medium px-3 py-2">RH %</th>
+                    <th class="text-right font-medium px-3 py-2">VPD kPa</th>
+                    <th class="text-right font-medium px-3 py-2">PPFD</th>
+                    <th class="text-right font-medium px-3 py-2">CO₂ ppm</th>
+                    <th class="text-right font-medium px-3 py-2">EC mS/cm</th>
+                    <th class="text-right font-medium px-3 py-2">VWC %</th>
+                    <th class="text-right font-medium px-3 py-2">Pump</th>
+                    <th class="text-right font-medium px-3 py-2">CO₂ valve</th>
+                    <th class="text-right font-medium px-3 py-2">Zone valves</th>
+                    <th class="text-right font-medium px-4 py-2">Sensor health</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/6 font-mono">
+                  <template x-for="row in basementRows()" :key="'base-'+row.id">
+                    <tr class="hover:bg-white/[0.02]">
+                      <td class="px-4 py-2 font-sans font-medium text-slate-300" x-text="row.name"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.temp"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.rh"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.vpd"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.ppfd"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.co2"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.ec"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.vwc"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.pump"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.co2v"></td>
+                      <td class="px-3 py-2 text-right text-slate-400" x-text="row.valves"></td>
+                      <td class="px-4 py-2 text-right" :class="row.health==='ok'?'text-emerald-400':'text-amber-400'" x-text="row.health"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div class="px-4 py-2.5 text-[11px] text-slate-500 border-t border-white/8">
+              Updated <span x-text="ago(lastUpdated)"></span> ago · full graphs live in each room's drill-down. The surface reads the plant; this floor reads the instruments.
             </div>
           </div>
         </div>
@@ -433,8 +514,9 @@
               <template x-for="z in zones" :key="z.id">
                 <div class="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/8">
                   <div class="min-w-0 flex-1">
-                    <div class="text-sm font-medium" x-text="z.name"></div>
-                    <div class="text-[11px] text-slate-400">Phase <span class="text-slate-200" x-text="z.phase"></span> · VWC <span x-text="z.vwc.toFixed(0)"></span>% · EC <span x-text="z.ec.toFixed(1)"></span> · target <span x-text="z.drybackTarget"></span>% dryback</div>
+                    <div class="text-sm font-medium flex items-center gap-2"><span x-text="z.name"></span>
+                      <span class="w-1.5 h-1.5 rounded-full" :class="z.valve==='open'?'bg-cyan-400':'bg-slate-600'" :title="'valve '+z.valve"></span></div>
+                    <div class="text-[11px] text-slate-400">Phase <span class="text-slate-200" x-text="z.phase"></span> · VWC <span :class="z.vwc<z.p3Floor?'text-amber-400 font-semibold':''" x-text="z.vwc.toFixed(0)"></span>% <span class="text-slate-600">(floor <span x-text="z.p3Floor"></span>%)</span> · EC <span x-text="z.ec.toFixed(1)"></span> · last shot <span x-text="z.lastShot"></span> → +<span x-text="z.response.toFixed(1)"></span>% VWC</div>
                   </div>
                   <button @click="z.auto=!z.auto;toast(z.name+(z.auto?' → Auto':' → Manual'))"
                     class="relative w-12 h-7 rounded-full transition shrink-0" :class="z.auto?'bg-emerald-500':'bg-white/15'">
@@ -522,8 +604,11 @@
             <div class="flex items-start gap-3">
               <div class="w-9 h-9 rounded-xl grid place-items-center shrink-0" :class="sevBg(a.sev)"><span x-html="icons[a.icon]||icons.alert" class="w-4.5 h-4.5 block" :class="sevText(a.sev)"></span></div>
               <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2 flex-wrap"><span class="text-sm font-semibold" x-text="a.title"></span><span class="text-[11px] text-slate-500" x-text="'· '+a.room+' · '+ago(a.ts)+' ago'"></span></div>
+                <div class="flex items-center gap-2 flex-wrap"><span class="text-sm font-semibold" x-text="a.title"></span><span class="text-[11px] text-slate-500" x-text="'· '+a.room+' · '+ago(a.ts)+' ago'"></span>
+                  <span class="text-[11px] text-slate-500 inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full" :class="a.confidence==='high'?'bg-emerald-400':a.confidence==='med'?'bg-amber-400':'bg-slate-500'"></span><span x-text="a.confidence"></span></span></div>
                 <p class="text-[13px] text-slate-400 mt-1" x-text="a.detail"></p>
+                <p class="text-[12px] text-slate-500 mt-1"><span class="text-slate-400 font-medium">Next step:</span> <span x-text="a.action"></span></p>
+                <code class="block mt-1.5 text-[11px] text-cyan-300/70 break-all" x-text="a.evidence"></code>
               </div>
               <button x-show="!a.acked" @click="ackAlert(a.id)" class="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-xs border border-white/10 shrink-0">Ack</button>
               <span x-show="a.acked" class="text-[11px] text-emerald-400 shrink-0">✓ acked</span>
@@ -576,7 +661,24 @@
           <div class="rounded-2xl p-4" :class="sevBg(r.status)">
             <div class="text-sm font-semibold" :class="sevText(r.status)" x-text="r.plantTruth"></div>
           </div>
-          <!-- big sensors -->
+          <!-- inferred plant-state signals (spec §4 — the plant, not the room) -->
+          <div>
+            <div class="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-2"><span x-html="icons.gauge" class="w-4 h-4 block text-emerald-400"></span> Plant state — inferred</div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <template x-for="t in stateTiles(r)" :key="t.k">
+                <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-3.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] uppercase tracking-wider text-slate-400" x-text="t.label"></span>
+                    <span class="w-1.5 h-1.5 rounded-full" :class="t.s==='ok'?'bg-emerald-400':t.s==='watch'?'bg-amber-300':'bg-amber-400'"></span>
+                  </div>
+                  <div class="text-lg font-bold mt-1" :class="tileCls(t.s)" x-text="t.val"></div>
+                  <div class="text-[10px] text-slate-500" x-text="t.sub"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+          <!-- raw sensors (the room's basement) -->
+          <div class="text-xs font-semibold text-slate-300 -mb-2 flex items-center gap-2"><span x-html="icons.layers" class="w-4 h-4 block text-slate-500"></span> Raw readings</div>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <template x-for="m in roomMetrics(r)" :key="m.k">
               <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-3.5">
@@ -602,9 +704,25 @@
               </template>
             </div>
           </div>
+          <!-- crop-steering zones in this room -->
+          <div x-show="roomZones(r).length" class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+            <div class="text-xs font-semibold text-slate-300 mb-3">Crop-steering zones</div>
+            <div class="space-y-2">
+              <template x-for="z in roomZones(r)" :key="'rm-'+z.id">
+                <div class="flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.03] border border-white/8 text-[12px]">
+                  <span class="font-medium text-slate-200 w-14" x-text="z.id"></span>
+                  <span class="px-1.5 py-0.5 rounded bg-white/8 text-slate-300" x-text="z.phase"></span>
+                  <span :class="z.vwc < z.p3Floor ? 'text-amber-400 font-semibold' : 'text-slate-400'">VWC <span x-text="z.vwc.toFixed(0)"></span>% <span class="text-slate-600">/ floor <span x-text="z.p3Floor"></span>%</span></span>
+                  <span class="text-slate-400">EC <span x-text="z.ec.toFixed(1)"></span></span>
+                  <span class="ml-auto text-slate-500">last shot <span x-text="z.lastShot"></span> · +<span x-text="z.response.toFixed(1)"></span>% VWC</span>
+                  <span class="w-1.5 h-1.5 rounded-full" :class="z.valve==='open'?'bg-cyan-400':'bg-slate-600'" :title="'valve '+z.valve"></span>
+                </div>
+              </template>
+            </div>
+          </div>
           <!-- history chart -->
           <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
-            <div class="text-xs font-semibold text-slate-300 mb-2">24h history</div>
+            <div class="text-xs font-semibold text-slate-300 mb-2">24h history — VPD + VWC</div>
             <div class="h-48 relative" style="height:12rem;position:relative"><canvas id="roomHistChart"></canvas></div>
           </div>
           <!-- notes -->
@@ -618,7 +736,7 @@
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button @click="logCheck(r)" class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition">Log check</button>
             <button @click="adjustTarget(r)" class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition">Adjust target</button>
-            <button @click="simulateDrift(r)" class="h-11 rounded-xl bg-amber-400/15 border border-amber-400/25 text-amber-300 text-xs font-medium hover:bg-amber-400/25 transition">Simulate drift</button>
+            <button @click="roomModal=null; cmdOpen=true; cmdQuery='Demo:'" class="h-11 rounded-xl bg-amber-400/15 border border-amber-400/25 text-amber-300 text-xs font-medium hover:bg-amber-400/25 transition">Demo scenarios</button>
             <button class="h-11 rounded-xl bg-white/5 border border-white/10 text-xs font-medium hover:bg-white/10 transition flex items-center justify-center gap-1"><span x-html="icons.cam" class="w-4 h-4 block"></span> Camera</button>
           </div>
         </div>
@@ -712,6 +830,57 @@
   </div>
 </div>
 
+<!-- ===================== TARGET BANDS (editable envelopes, spec §4) ===================== -->
+<div x-show="bandsOpen" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="bandsOpen=false">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="bandsOpen=false"></div>
+  <div class="absolute inset-x-0 bottom-0 md:inset-0 md:m-auto md:h-fit md:max-w-3xl md:rounded-3xl rounded-t-3xl glass-strong border-t md:border border-white/12 max-h-[92vh] overflow-y-auto scrollx"
+       x-transition:enter="transition duration-300" x-transition:enter-start="translate-y-full md:translate-y-4 md:opacity-0" x-transition:enter-end="translate-y-0 md:opacity-100">
+    <template x-if="bandsDraft">
+      <div>
+        <div class="sticky top-0 glass-strong border-b border-white/8 p-5 flex items-center gap-3 z-10">
+          <div class="w-10 h-10 rounded-xl grid place-items-center bg-emerald-500/15 ring-1 ring-emerald-400/30"><span x-html="icons.settings" class="w-5 h-5 block text-emerald-400"></span></div>
+          <div class="flex-1 min-w-0">
+            <div class="font-bold">Target bands</div>
+            <div class="text-[11px] text-slate-400">Expected envelope per stage — every judgment on this dashboard reads these. Athena-style defaults; saved to this device.</div>
+          </div>
+          <button @click="bandsOpen=false" class="w-9 h-9 rounded-lg grid place-items-center bg-white/5 hover:bg-white/10"><span x-html="icons.x" class="w-5 h-5 block"></span></button>
+        </div>
+        <div class="p-5 space-y-4">
+          <template x-for="st in bandStages()" :key="'bs-'+st">
+            <div class="rounded-2xl bg-white/[0.03] border border-white/8 p-4">
+              <div class="text-xs font-semibold text-emerald-300 uppercase tracking-wider mb-3" x-text="st==='veg'?'Vegetative':st==='early'?'Early flower':st==='bulk'?'Bulk':'Finish / flush'"></div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[12px]">
+                <div><label class="text-[10px] uppercase tracking-wider text-slate-500 block mb-1">VPD kPa lo–hi</label>
+                  <div class="flex gap-1.5">
+                    <input type="number" step="0.05" x-model.number="bandsDraft[st].vpd[0]" class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">
+                    <input type="number" step="0.05" x-model.number="bandsDraft[st].vpd[1]" class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">
+                  </div></div>
+                <div><label class="text-[10px] uppercase tracking-wider text-slate-500 block mb-1">Temp °C lo–hi</label>
+                  <div class="flex gap-1.5">
+                    <input type="number" step="0.5" x-model.number="bandsDraft[st].temp[0]" class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">
+                    <input type="number" step="0.5" x-model.number="bandsDraft[st].temp[1]" class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">
+                  </div></div>
+                <div><label class="text-[10px] uppercase tracking-wider text-slate-500 block mb-1">Pore EC lo–hi</label>
+                  <div class="flex gap-1.5">
+                    <input type="number" step="0.1" x-model.number="bandsDraft[st].ec[0]" class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">
+                    <input type="number" step="0.1" x-model.number="bandsDraft[st].ec[1]" class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50">
+                  </div></div>
+                <div><label class="text-[10px] uppercase tracking-wider text-slate-500 block mb-1">Dryback target %</label>
+                  <input type="number" step="1" x-model.number="bandsDraft[st].drybackTarget" class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50"></div>
+              </div>
+            </div>
+          </template>
+          <div class="flex items-center gap-2">
+            <button @click="saveBands()" class="h-11 px-5 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-400/30 text-emerald-300 text-sm font-semibold hover:bg-emerald-500/25 transition">Save bands</button>
+            <button @click="resetBands()" class="h-11 px-4 rounded-xl bg-white/5 border border-white/10 text-sm font-medium hover:bg-white/10 transition">Reset to defaults</button>
+            <span class="ml-auto text-[11px] text-slate-500">Bands, not thresholds — normal is a trajectory.</span>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
 <!-- ===================== TOASTS ===================== -->
 <div class="fixed bottom-24 md:bottom-6 right-4 z-[70] space-y-2">
   <template x-for="t in toasts" :key="t.id">
@@ -722,8 +891,387 @@
 </div>
 
 <script>
-document.addEventListener('alpine:init', () => {
-  Alpine.data('app', () => ({
+/* =====================================================================================
+   PLANT-STATE ENGINE — module scope, deliberately OUTSIDE Alpine reactivity.
+   Chart.js instances, rolling history buffers, band config and the rules array all live
+   here. Never hand a reactive proxy to Chart.js and never let Alpine wrap a Chart.
+   ===================================================================================== */
+
+/* ---------- expected envelopes: cultivar-stage bands, lights-aware, user-editable ---------- */
+const DEFAULT_BANDS = {
+  veg:    { vpd:[0.8,1.2],  temp:[24,27],   rh:[60,70], co2:[800,1200],   ppfd:[350,600],   ec:[2.0,3.5], cwsiMax:0.30, drybackTarget:12, vwcFloor:45 },
+  early:  { vpd:[1.0,1.4],  temp:[24,26.5], rh:[55,65], co2:[1000,1400],  ppfd:[750,1000],  ec:[3.0,4.5], cwsiMax:0.35, drybackTarget:15, vwcFloor:42 },
+  bulk:   { vpd:[1.1,1.45], temp:[24,27],   rh:[52,62], co2:[1000,1500],  ppfd:[900,1100],  ec:[4.0,6.0], cwsiMax:0.35, drybackTarget:15, vwcFloor:40 },
+  finish: { vpd:[1.0,1.4],  temp:[22,25.5], rh:[50,60], co2:[800,1200],   ppfd:[700,950],   ec:[1.5,3.0], cwsiMax:0.35, drybackTarget:20, vwcFloor:38 },
+  mother: { vpd:[0.8,1.1],  temp:[23,25.5], rh:[62,72], co2:[600,1000],   ppfd:[200,400],   ec:[1.5,2.2], cwsiMax:0.25, drybackTarget:8,  vwcFloor:50 },
+  dry:    { vpd:[0.7,0.95], temp:[16,20],   rh:[55,62], co2:[400,1000],   ppfd:[0,0],       ec:[0,0],     cwsiMax:1,    drybackTarget:0,  vwcFloor:0 },
+};
+let BANDS = loadBands();
+function loadBands(){
+  try{ const s=JSON.parse(localStorage.getItem("la.bands")); if(s && s.bulk) return s; }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT_BANDS));
+}
+function persistBands(){ try{ localStorage.setItem("la.bands", JSON.stringify(BANDS)); }catch(e){} }
+function resetBandsToDefault(){ BANDS = JSON.parse(JSON.stringify(DEFAULT_BANDS)); persistBands(); }
+function bandFor(r){ return BANDS[r.stageKey] || BANDS.bulk; }
+
+/* ---------- rolling history (plain arrays, module scope) ---------- */
+const HIST = {};                 // HIST[roomId] = {vpd:[],temp:[],rh:[],ec:[],cwsi:[],vwc:[]}
+const HIST_MAX = 96;             // each sample ≈ one demo "interval"
+const CHARTS = {};               // Chart.js instances, keyed by canvas id
+let TICK_ID = 0;
+
+function ensureHist(id){
+  if(!HIST[id]) HIST[id] = {vpd:[],temp:[],rh:[],ec:[],cwsi:[],vwc:[]};
+  return HIST[id];
+}
+function pushHist(r){
+  const h = ensureHist(r.id);
+  ["vpd","temp","rh","ec","cwsi","vwc"].forEach(k=>{
+    h[k].push(r[k]); if(h[k].length>HIST_MAX) h[k].shift();
+  });
+}
+function seedHist(r){
+  const h = ensureHist(r.id);
+  for(let i=0;i<48;i++){
+    h.vpd.push(+(r.vpd + Math.sin(i/5)*0.08 + (Math.random()-.5)*0.04).toFixed(2));
+    h.temp.push(+(r.temp + Math.sin(i/6)*0.6 + (Math.random()-.5)*0.2).toFixed(1));
+    h.rh.push(+(r.rh + Math.cos(i/5)*2.5 + (Math.random()-.5)*0.8).toFixed(1));
+    h.ec.push(+(r.ec + Math.sin(i/9)*0.15).toFixed(2));
+    h.cwsi.push(+Math.max(0,(r.cwsi + Math.sin(i/7)*0.03)).toFixed(2));
+    h.vwc.push(+(r.vwc + Math.sin(i/4)*3).toFixed(1));
+  }
+}
+function slope(arr, n){          // simple per-sample slope over the last n points
+  if(!arr || arr.length<n) return 0;
+  const a = arr.slice(-n);
+  return (a[a.length-1]-a[0])/n;
+}
+function mean(arr, n){ const a=arr.slice(-n); return a.reduce((s,v)=>s+v,0)/(a.length||1); }
+function flatlined(arr, n){      // n identical (±epsilon) samples in a row = dead sensor
+  if(!arr || arr.length<n) return false;
+  const a=arr.slice(-n); return a.every(v=>Math.abs(v-a[0])<0.001);
+}
+
+/* ---------- derived plant-state signals (spec §4 — inferred, not raw) ---------- */
+function deriveSignals(r){
+  const b = bandFor(r);
+  const h = ensureHist(r.id);
+  const leafVpd = r.lightsOn ? +(r.vpd + 0.12).toFixed(2) : null;   // leaf runs warmer than air under load
+  // transpiration index: is the plant actually drinking — fuses VPD position, VWC draw-down and light
+  let transp = 0;
+  if(r.lightsOn && !r.dryRoom){
+    const vpdOk = r.vpd>=b.vpd[0]*0.85 && r.vpd<=b.vpd[1]*1.15 ? 1 : 0.55;
+    const drawing = slope(h.vwc,6) < -0.05 ? 1 : 0.6;               // canopy pulling water down
+    transp = Math.round(100 * vpdOk * drawing * (1 - Math.min(0.5, r.cwsi)));
+  }
+  const drybackRate = +(-slope(h.vwc,8) * 10).toFixed(1);           // %VWC per fictional hour
+  const ecTrend = slope(h.ec,10);
+  return {
+    stress:    { v:r.cwsi, s: r.cwsi>=0.5?"warn": r.cwsi>b.cwsiMax?"watch":"ok" },
+    transp:    { v:transp, s: !r.lightsOn||r.dryRoom ? "ok" : transp<45?"warn": transp<65?"watch":"ok" },
+    leafVpd:   { v:leafVpd, s: leafVpd===null ? "ok" : leafVpd<b.vpd[0]?"watch": leafVpd>b.vpd[1]+0.15?"warn": leafVpd>b.vpd[1]?"watch":"ok" },
+    dryback:   { v:r.dryback, target:b.drybackTarget, rate:drybackRate,
+                 s: b.drybackTarget===0?"ok": r.dryback<b.drybackTarget*0.4?"warn": r.dryback<b.drybackTarget*0.6?"watch":"ok" },
+    poreEc:    { v:r.ec, trend:ecTrend, target:b.ec,
+                 s: b.ec[1]===0?"ok": r.ec>b.ec[1]+0.8?"warn": r.ec>b.ec[1]||r.ec<b.ec[0]?"watch":"ok" },
+    flags:     { substrate: r.vwc>0 && r.vwc < b.vwcFloor, lightLoad: r.lightsOn && r.ppfd > b.ppfd[1] && r.cwsi > 0.3 },
+  };
+}
+
+/* =====================================================================================
+   RULES — a pure array. Each rule gets a context and returns null or an advisory:
+   {sev, icon, confidence, title, detail, action, evidence}. crit/warn → Advisories,
+   watch → Watchlist. Rules FUSE signals; single-threshold trips are not welcome here.
+   ===================================================================================== */
+const RULES = [
+
+  // Corner hotspot — inferred from a persistent gradient, not a hard-coded flag.
+  ({r,h,b})=>{
+    if(r.dryRoom || !r.lightsOn || r.sensors.cornerDelta < 2.0) return null;
+    const persistent = Math.round(r.sensors.cornerDeltaMins) >= 30;
+    return {
+      sev: r.sensors.cornerDelta >= 3.5 ? "crit" : "warn",
+      icon:"thermo", confidence: persistent ? "high" : "med",
+      title:"Corner of the room is running hot",
+      detail:`Back-left canopy is ${r.sensors.cornerDelta.toFixed(1)} °C over the room average and has been for ${Math.round(r.sensors.cornerDeltaMins)} min. VPD there is effectively ~${(r.vpd+0.35).toFixed(2)} kPa — those plants transpire against drier air and stress first.`,
+      action:"Check AC throw and aim a circulation fan at the back-left corner. Do not raise room RH — that over-humidifies the healthy 80% of canopy. Re-check the gradient in 30 min.",
+      evidence:`corner_temp=${(r.temp+r.sensors.cornerDelta).toFixed(1)}°C  room_avg=${r.temp.toFixed(1)}°C  delta=${r.sensors.cornerDelta.toFixed(1)}°C  persistence=${Math.round(r.sensors.cornerDeltaMins)}min  lights=on`,
+    };
+  },
+
+  // Pump dead-head — pump drawing power while every valve on its manifold is shut.
+  ({r,zones})=>{
+    const zs = zones.filter(z=>z.roomId===r.id);
+    if(!zs.length || r.equip.pumpW < 60) return null;
+    if(zs.some(z=>z.valve==="open")) return null;
+    return {
+      sev:"crit", icon:"power", confidence:"high",
+      title:"Irrigation pump is dead-heading",
+      detail:`The ${r.name} feed pump is drawing ${r.equip.pumpW} W with all ${zs.length} zone valves closed. It is pushing against a closed manifold — heat, pressure and a dead pump if it keeps running.`,
+      action:"Kill the pump now, then check valve control: a stuck relay or a missed open command. Restart only after one valve confirms open.",
+      evidence:`pump_power=${r.equip.pumpW}W  valves=${zs.map(z=>z.id+":"+z.valve).join("  ")}  expected=pump idle <10W when manifold closed`,
+    };
+  },
+
+  // CO2 high while dark — enrichment valve leaking or exhaust failed after lights-off.
+  ({r})=>{
+    if(r.lightsOn || r.dryRoom || r.co2 < 900) return null;
+    return {
+      sev:"warn", icon:"wind", confidence: r.equip.co2Valve==="open" ? "high" : "med",
+      title:"CO₂ climbing in the dark",
+      detail:`${r.name} is dark but CO₂ reads ${Math.round(r.co2)} ppm (expect near-ambient overnight). ${r.equip.co2Valve==="open" ? "The enrichment valve reports OPEN — it should have closed at lights-off." : "Enrichment valve reports closed, so suspect a leaking solenoid or a dead exhaust fan."} Plants do not use CO₂ in the dark — this is pure waste and a safety smell.`,
+      action: r.equip.co2Valve==="open" ? "Close the CO₂ solenoid manually and inspect the lights-off automation before the next dark cycle." : "Verify the solenoid seals when closed and confirm the exhaust fan runs on its overnight schedule.",
+      evidence:`co2=${Math.round(r.co2)}ppm  lights=off  co2_valve=${r.equip.co2Valve}  ambient_baseline≈450ppm`,
+    };
+  },
+
+  // Shallow dryback — substrate staying wet through the dryback window.
+  ({r,b,d})=>{
+    if(r.dryRoom || b.drybackTarget===0) return null;
+    const ratio = r.dryback / b.drybackTarget;
+    if(ratio >= 0.6) return null;
+    const bad = ratio < 0.4;
+    return {
+      sev: bad ? "warn" : "watch",
+      icon:"drop", confidence: bad ? "high" : "med",
+      title: bad ? "Dryback has stalled" : `${r.name}: shallow dryback`,
+      detail:`Dryback is ${r.dryback.toFixed(1)}% against a ${b.drybackTarget}% target (rate ${d.dryback.rate}%/hr). A wet substrate never pulls EC toward target and invites root-zone pathogens.`,
+      action: bad ? "Cut one P2 maintenance shot today and confirm the last-shot cutoff time. If VWC still will not fall, check for a weeping valve." : "No action yet — flagged so the P3 window gets watched tonight.",
+      evidence:`dryback=${r.dryback.toFixed(1)}%  target=${b.drybackTarget}%  rate=${d.dryback.rate}%/hr  vwc=${r.vwc.toFixed(1)}%`,
+    };
+  },
+
+  // EC stacking without dryback — the dangerous combination, not either signal alone.
+  ({r,b,h,d})=>{
+    if(r.dryRoom || b.ec[1]===0) return null;
+    const high = r.ec > b.ec[1] + 0.5;
+    const rising = slope(h.ec,10) > 0.01;
+    const wet = r.dryback < b.drybackTarget*0.6;
+    if(!(high && rising && wet)) return null;
+    return {
+      sev:"warn", icon:"salt", confidence:"high",
+      title:"EC stacking with no dryback to flush it",
+      detail:`Pore EC is ${r.ec.toFixed(1)} mS/cm (band ${b.ec[0]}–${b.ec[1]}) and still climbing, while dryback sits at ${r.dryback.toFixed(1)}% of a ${b.drybackTarget}% target. Salt is accumulating faster than the root zone can clear it — osmotic stress follows.`,
+      action:`Push one larger P2 shot (~5% volume) to drive runoff and knock pore EC back under ${b.ec[1]} mS/cm, then restore the dryback window.`,
+      evidence:`pore_ec=${r.ec.toFixed(1)}mS/cm  band=${b.ec[0]}-${b.ec[1]}  ec_slope=+${slope(h.ec,10).toFixed(3)}/sample  dryback=${r.dryback.toFixed(1)}%/${b.drybackTarget}%`,
+    };
+  },
+
+  // Sensor flatline — the system must know when it is blind (spec §6.5).
+  ({r,h})=>{
+    if(r.dryRoom) return null;
+    const dead = [];
+    if(flatlined(h.ec,8)) dead.push("pore-EC");
+    if(flatlined(h.vwc,8)) dead.push("VWC");
+    if(!dead.length){ r.blind=false; return null; }
+    r.blind = true;
+    return {
+      sev:"warn", icon:"eye", confidence:"high",
+      title:`${dead.join(" + ")} sensor flatlined — treat as blind`,
+      detail:`The ${r.name} ${dead.join(" and ")} channel${dead.length>1?"s have":" has"} reported an identical value for 8 straight samples. That is a dead probe, not a stable root zone. Substrate inferences for this room are suppressed until it moves.`,
+      action:"Reseat the probe cable and power-cycle the sensor node. If it stays flat, swap the probe — do not steer on a frozen number.",
+      evidence:`${dead.map(dn=>dn+"=frozen@"+ (dn==="VWC"? r.vwc.toFixed(1)+"%" : r.ec.toFixed(2)+"mS/cm")).join("  ")}  samples=8  variance<0.001`,
+    };
+  },
+
+  // Light-load stress — high PPFD is only a problem when the plant says so. Three signals fused.
+  ({r,b,h})=>{
+    if(r.dryRoom || !r.lightsOn) return null;
+    const over = r.ppfd > b.ppfd[1];
+    const stressed = r.cwsi > b.cwsiMax && slope(h.cwsi,8) > 0.004;
+    const dry = mean(h.vpd,6) > b.vpd[1];
+    if(!(over && stressed && dry)) return null;
+    return {
+      sev:"warn", icon:"sun", confidence:"high",
+      title:"Canopy is losing the light-load race",
+      detail:`PPFD ${Math.round(r.ppfd)} µmol sits over the ${b.ppfd[1]} band ceiling while CWSI has risen to ${r.cwsi.toFixed(2)} and VPD has averaged ${mean(h.vpd,6).toFixed(2)} kPa. The plant cannot transpire fast enough for the photons it is being fed.`,
+      action:`Dim to ~${Math.round(b.ppfd[1]*0.92)} µmol or pull VPD back to ${b.vpd[1]} kPa max. Re-check CWSI in 20 min — it should fall within two samples.`,
+      evidence:`ppfd=${Math.round(r.ppfd)}µmol (band ≤${b.ppfd[1]})  cwsi=${r.cwsi.toFixed(2)} rising  vpd_6sample_mean=${mean(h.vpd,6).toFixed(2)}kPa`,
+    };
+  },
+
+  // Irrigation engine unhealthy — shots stopped arriving while the room is in a feed window.
+  ({r})=>{
+    if(r.dryRoom || !r.lightsOn || !r.irr) return null;
+    if(r.irr.lastShotMin <= r.irr.expectedIntervalMin * 1.8) return null;
+    return {
+      sev:"crit", icon:"clock", confidence:"high",
+      title:"Irrigation engine has gone quiet",
+      detail:`${r.name} last fired a shot ${Math.round(r.irr.lastShotMin)} min ago against an expected ~${r.irr.expectedIntervalMin} min P2 cadence. The steering engine is stalled or its automation is wedged — VWC will fall through the P3 floor if this holds.`,
+      action:"Open the irrigation controller and check the engine heartbeat. Fire one manual shot now to buy time, then find why the scheduler stopped.",
+      evidence:`last_shot=${Math.round(r.irr.lastShotMin)}min ago  expected_interval=${r.irr.expectedIntervalMin}min  phase=${r.phase}  lights=on`,
+    };
+  },
+
+  // VPD off-band as a trajectory — judged on the recent mean, not one noisy sample.
+  ({r,b,h})=>{
+    if(r.dryRoom || !r.lightsOn) return null;
+    const m = mean(h.vpd,6);
+    if(m <= b.vpd[1] + 0.1) {
+      if(m < b.vpd[0] - 0.1) return {
+        sev:"watch", icon:"wind", confidence:"med",
+        title:`${r.name}: VPD sagging under the band`,
+        detail:`VPD has averaged ${m.toFixed(2)} kPa over the last 6 samples against a ${b.vpd[0]}–${b.vpd[1]} band. Low VPD slows transpiration and invites mildew in a dense canopy.`,
+        action:"Nudge RH down 3–4% or add 0.5 °C. Watching, not urgent.",
+        evidence:`vpd_6sample_mean=${m.toFixed(2)}kPa  band=${b.vpd[0]}-${b.vpd[1]}  rh=${Math.round(r.rh)}%`,
+      };
+      return null;
+    }
+    const bad = m > b.vpd[1] + 0.25;
+    return {
+      sev: bad ? "warn" : "watch",
+      icon:"wind", confidence: bad ? "high" : "med",
+      title: bad ? "VPD has been over the band for a while" : `${r.name}: VPD drifting high`,
+      detail:`VPD has averaged ${m.toFixed(2)} kPa over the last 6 samples (band ${b.vpd[0]}–${b.vpd[1]}). Sustained, stomata close and stacking slows — this is a trajectory call, not a single spike.`,
+      action:`Raise RH 4–6% or trim leaf-zone airflow; aim ${((b.vpd[0]+b.vpd[1])/2).toFixed(1)} kPa.`,
+      evidence:`vpd_now=${r.vpd.toFixed(2)}kPa  vpd_6sample_mean=${m.toFixed(2)}kPa  band=${b.vpd[0]}-${b.vpd[1]}  temp=${r.temp.toFixed(1)}°C  rh=${Math.round(r.rh)}%`,
+    };
+  },
+
+  // CO2 enrichment failing during lights-on — watch tier, money on the table.
+  ({r,b})=>{
+    if(r.dryRoom || !r.lightsOn || b.co2[0]===0) return null;
+    if(r.co2 >= b.co2[0]*0.85) return null;
+    return {
+      sev:"watch", icon:"activity", confidence:"med",
+      title:`${r.name}: CO₂ under target with lights on`,
+      detail:`CO₂ is ${Math.round(r.co2)} ppm against a ${b.co2[0]}–${b.co2[1]} enrichment band. Free growth being left on the table if the tank or solenoid is starving the room.`,
+      action:"Check tank level and solenoid duty on the next walk-through.",
+      evidence:`co2=${Math.round(r.co2)}ppm  band=${b.co2[0]}-${b.co2[1]}  co2_valve=${r.equip.co2Valve}`,
+    };
+  },
+
+  // Flush progressing normally — a calm, informative watch entry during finish.
+  ({r,b})=>{
+    if(r.stageKey!=="finish" || r.ec > 2.5) return null;
+    return {
+      sev:"watch", icon:"check", confidence:"high",
+      title:`${r.name}: EC low — flush on track`,
+      detail:`Pore EC ${r.ec.toFixed(1)} mS/cm — expected during flush. Dryback widening as planned. On track for finish.`,
+      action:"None. Informational.",
+      evidence:`pore_ec=${r.ec.toFixed(1)}mS/cm  stage=finish  dryback=${r.dryback.toFixed(1)}%`,
+    };
+  },
+];
+
+/* ---------- run the rules, split by severity, dedupe ---------- */
+function runRules(rooms, zones){
+  const advisories=[], watchlist=[];
+  rooms.forEach(r=>{
+    const ctx = { r, h:ensureHist(r.id), b:bandFor(r), d:r.derived, zones };
+    RULES.forEach((rule,i)=>{
+      let out=null;
+      try{ out = rule(ctx); }catch(e){ /* a broken rule must never blank the page */ }
+      if(!out) return;
+      // suppress substrate-channel inferences while that room is flagged blind (except the blind rule itself)
+      if(r.blind && out.icon!=="eye" && ["drop","salt"].includes(out.icon)) return;
+      out.id = "rule"+i+"-"+r.id;
+      out.room = r.name; out.roomId = r.id; out.ts = Date.now();
+      (out.sev==="watch" ? watchlist : advisories).push(out);
+    });
+  });
+  advisories.sort((a,b)=>(a.sev==="crit"?0:1)-(b.sev==="crit"?0:1));
+  return { advisories, watchlist };
+}
+
+/* ---------- one line of plant truth, computed from the rule outputs (spec §5) ---------- */
+function computeHeadline(advisories, watchlist, rooms){
+  const crit = advisories.filter(a=>a.sev==="crit");
+  const warn = advisories.filter(a=>a.sev==="warn");
+  if(crit.length) return { sev:"crit",
+    big:`${crit.length===1 ? crit[0].title : crit.length+" things need action now"}`,
+    line: crit.length===1 ? `${crit[0].room} — ${crit[0].action}` : "Urgent advisories below — act before it reaches the plant." };
+  if(warn.length) return { sev:"warn",
+    big:`${warn.length} thing${warn.length>1?"s":""} to sort out`,
+    line: [...new Set(warn.map(a=>a.room))].join(", ") + " drifting out of band. Nothing urgent — details below." };
+  if(watchlist.length) return { sev:"ok",
+    big:"All rooms on track",
+    line:`Transpiring normally, climate in band. Watching ${watchlist.length} leading indicator${watchlist.length>1?"s":""} so you do not have to.` };
+  return { sev:"ok", big:"All rooms on track",
+    line:`${rooms.length} rooms steering as intended. Nothing needs you.` };
+}
+
+/* =====================================================================================
+   CHART LAYER — module scope. Every function takes PLAIN copies of data; nothing here
+   ever touches an Alpine proxy. (Spec §6.1: reactive proxy + Chart proxy = stack overflow.)
+   ===================================================================================== */
+function prefersReduced(){ return window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches; }
+function killChart(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id]; } }
+function sparkBase(){ return {responsive:false,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:600},
+  plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}; }
+
+function mountSpark(id, data, color){
+  const c=document.getElementById(id); if(!c) return;
+  killChart(id);
+  CHARTS[id]=new Chart(c,{type:"line",data:{labels:data.map((_,i)=>i),datasets:[{data,borderColor:color,borderWidth:2,fill:true,
+    backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,48);g.addColorStop(0,color+"40");g.addColorStop(1,color+"00");return g;},
+    tension:.4,pointRadius:0}]},options:sparkBase()});
+}
+function updateSpark(id, data, color){
+  const ch=CHARTS[id]; if(!ch) return;
+  ch.data.labels=data.map((_,i)=>i);
+  ch.data.datasets[0].data=data; ch.data.datasets[0].borderColor=color;
+  ch.update("none");
+}
+function mountEnvChart(roomId, range){
+  const c=document.getElementById("envChart"); if(!c) return;
+  killChart("envChart");
+  const h=ensureHist(roomId);
+  const n = range==="6h"?24 : range==="24h"?48 : 96;
+  const temp=h.temp.slice(-n), rh=h.rh.map(v=>v/3).slice(-n), vpd=h.vpd.map(v=>v*15).slice(-n);
+  const labels=temp.map(()=>"" );
+  const ds=(label,data,color)=>({label,data,borderColor:color,backgroundColor:color+"18",borderWidth:2,tension:.4,pointRadius:0,fill:false});
+  CHARTS["envChart"]=new Chart(c,{type:"line",
+    data:{labels,datasets:[ds("Temp °C",temp,"#34d399"),ds("RH (÷3)",rh,"#22d3ee"),ds("VPD ×15",vpd,"#fbbf24")]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:500},interaction:{mode:"index",intersect:false},
+      plugins:{legend:{display:true,labels:{color:"#94a3b8",boxWidth:10,boxHeight:10,usePointStyle:true,font:{size:11}}},
+        tooltip:{backgroundColor:"#11161d",borderColor:"#243",borderWidth:1}},
+      scales:{x:{display:false},y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10}}}}}});
+}
+function updateEnvChart(roomId, range){
+  const ch=CHARTS["envChart"]; if(!ch) return;
+  const h=ensureHist(roomId);
+  const n = range==="6h"?24 : range==="24h"?48 : 96;
+  ch.data.datasets[0].data=h.temp.slice(-n);
+  ch.data.datasets[1].data=h.rh.map(v=>v/3).slice(-n);
+  ch.data.datasets[2].data=h.vpd.map(v=>v*15).slice(-n);
+  ch.data.labels=ch.data.datasets[0].data.map(()=>"" );
+  ch.update("none");
+}
+function mountPowerChart(){
+  const c=document.getElementById("powerChart"); if(!c) return;
+  killChart("powerChart");
+  const data=[],labels=[];
+  for(let i=0;i<48;i++){ const hOf=(i/2); const day=hOf>=10&&hOf<22; data.push(+(day?6.5+Math.random()*1.2:2.4+Math.random()*0.6).toFixed(1)); labels.push(""); }
+  CHARTS["powerChart"]=new Chart(c,{type:"bar",data:{labels,datasets:[{data,backgroundColor:data.map(v=>v>5?"#fbbf24aa":"#34d39988"),borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:500},plugins:{legend:{display:false}},
+      scales:{x:{display:false},y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10},callback:v=>v+" kW"}}}}});
+}
+function mountRoomHistChart(roomId){
+  const c=document.getElementById("roomHistChart"); if(!c) return;
+  killChart("roomHistChart");
+  const h=ensureHist(roomId);
+  const vpd=h.vpd.slice(-48), vwc=h.vwc.slice(-48);
+  const labels=vpd.map(()=>"" );
+  CHARTS["roomHistChart"]=new Chart(c,{type:"line",data:{labels,datasets:[
+    {label:"VPD kPa",data:vpd,borderColor:"#34d399",backgroundColor:"#34d39915",borderWidth:2,tension:.4,pointRadius:0,fill:true,yAxisID:"y"},
+    {label:"VWC %",data:vwc,borderColor:"#22d3ee",borderWidth:2,tension:.4,pointRadius:0,fill:false,yAxisID:"y1"}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:400},
+      plugins:{legend:{display:true,labels:{color:"#94a3b8",boxWidth:10,usePointStyle:true,font:{size:10}}}},
+      scales:{x:{display:false},
+        y:{grid:{color:"rgba(255,255,255,.05)"},ticks:{color:"#64748b",font:{size:10}}},
+        y1:{position:"right",grid:{display:false},ticks:{color:"#155e75",font:{size:10}}}}}});
+}
+
+function worse(a,b){ const o={optimal:0,ok:0,watch:0,warn:1,crit:2}; return o[b]>o[a]?b:a; }
+
+/* =====================================================================================
+   UI STATE — the Alpine component. Holds seed data and view state only; all inference,
+   history and charting is delegated to the module-scope engine above.
+   ===================================================================================== */
+document.addEventListener("alpine:init", () => {
+  Alpine.data("app", () => ({
     /* ---------- icons (Lucide-style inline SVG) ---------- */
     icons: {
       leaf:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>`,
@@ -758,377 +1306,410 @@ document.addEventListener('alpine:init', () => {
       gauge:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4M3.34 19a10 10 0 1 1 17.32 0"/></svg>`,
       thermo:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>`,
       target:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>`,
+      settings:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`,
+      flask:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg>`,
+      layers:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 8.5 4.72a1 1 0 0 1 0 1.75L12 13 3.5 8.47a1 1 0 0 1 0-1.75L12 2z"/><path d="m3.5 12.5 8.5 4.7 8.5-4.7"/><path d="m3.5 17 8.5 4.7L20.5 17"/></svg>`,
     },
 
     /* ---------- navigation ---------- */
-    view:'dashboard', sidebarOpen:true,
+    view:"dashboard", sidebarOpen:true,
     nav:[
-      {id:'dashboard',label:'Dashboard',icon:'dashboard'},
-      {id:'rooms',label:'Rooms & Zones',icon:'rooms'},
-      {id:'batches',label:'Batches & Harvest',icon:'harvest'},
-      {id:'irrigation',label:'Irrigation & Environment',icon:'drop'},
-      {id:'energy',label:'Energy & Resources',icon:'power'},
-      {id:'compliance',label:'Compliance & Reports',icon:'doc'},
-      {id:'alerts',label:'Alerts',icon:'bell',badge(){return Alpine.store?0:0}},
+      {id:"dashboard",label:"Dashboard",icon:"dashboard"},
+      {id:"rooms",label:"Rooms & Zones",icon:"rooms"},
+      {id:"batches",label:"Batches & Harvest",icon:"harvest"},
+      {id:"irrigation",label:"Irrigation & Environment",icon:"drop"},
+      {id:"energy",label:"Energy & Resources",icon:"power"},
+      {id:"compliance",label:"Compliance & Reports",icon:"doc"},
+      {id:"alerts",label:"Alerts",icon:"bell"},
     ],
     mobileNav:[
-      {id:'dashboard',label:'Home',icon:'dashboard'},
-      {id:'rooms',label:'Rooms',icon:'rooms'},
-      {id:'batches',label:'Harvest',icon:'harvest'},
-      {id:'alerts',label:'Alerts',icon:'alerts'},
-      {id:'ai',label:'AI',icon:'ai'},
+      {id:"dashboard",label:"Home",icon:"dashboard"},
+      {id:"rooms",label:"Rooms",icon:"rooms"},
+      {id:"batches",label:"Harvest",icon:"harvest"},
+      {id:"alerts",label:"Alerts",icon:"alerts"},
+      {id:"ai",label:"AI",icon:"ai"},
     ],
 
     /* ---------- live state ---------- */
     now:Date.now(), lastUpdated:Date.now(),
-    cmdOpen:false, cmdQuery:'', aiOpen:false, aiInput:'', aiThinking:false,
-    roomModal:null, batchModal:null,
-    trendRoom:'flower-a', trendRange:'24h',
-    batchFilter:'', batchSort:{k:'harvest',dir:1},
-    notes:{}, notesSaved:false, toasts:[], _charts:{}, _tid:0,
+    cmdOpen:false, cmdQuery:"", aiOpen:false, aiInput:"", aiThinking:false,
+    roomModal:null, batchModal:null, bandsOpen:false, basementOpen:false,
+    trendRoom:"flower-a", trendRange:"24h",
+    batchFilter:"", batchSort:{k:"harvest",dir:1},
+    notes:{}, notesSaved:false, toasts:[],
+    bandsDraft:null,
 
-    /* ---------- seed data (real F2 / Athena-informed) ---------- */
+    /* ---------- seed data (real F2 / Athena-informed) ----------
+       stageKey maps each room onto its expected envelope in BANDS.
+       sensors/equip/irr feed the fused rules (hotspot, dead-head, CO2-dark,
+       engine-quiet, flatline). Scenario buttons perturb these fields. */
     rooms:[
-      {id:'veg', name:'Veg 1', stage:'Vegetative', week:2, strain:'Gelato #41', batch:'LA-2604', lightsOn:true,
-        vpd:1.02, temp:25.1, rh:64, ppfd:430, co2:900, ec:2.6, vwc:58, dryback:8, drybackTarget:12, cwsi:0.12, phase:'P2', status:'optimal', spark:[]},
-      {id:'flower-a', name:'Flower A', stage:'Early flower', week:3, strain:'Wedding Cake', batch:'LA-2588', lightsOn:true,
-        vpd:1.18, temp:26.0, rh:60, ppfd:910, co2:1290, ec:4.1, vwc:52, dryback:14, drybackTarget:15, cwsi:0.22, phase:'P2', status:'optimal', spark:[]},
-      {id:'flower-b', name:'Flower B', stage:'Bulk', week:6, strain:'MAC 1', batch:'LA-2571', lightsOn:true,
-        vpd:1.46, temp:27.3, rh:55, ppfd:1010, co2:1240, ec:5.0, vwc:49, dryback:6, drybackTarget:15, cwsi:0.41, phase:'P2', status:'warn', spark:[],
-        hotspot:true},
-      {id:'flower-c', name:'Flower C', stage:'Finish / flush', week:10, strain:'Runtz', batch:'LA-2540', lightsOn:true,
-        vpd:1.21, temp:25.5, rh:58, ppfd:860, co2:1180, ec:2.2, vwc:47, dryback:18, drybackTarget:20, cwsi:0.28, phase:'P3', status:'optimal', spark:[]},
-      {id:'dry', name:'Dry / Cure', stage:'Dry room', week:0, strain:'Mixed lot', batch:'LA-2533', lightsOn:false,
-        vpd:0.82, temp:18.2, rh:60, ppfd:0, co2:600, ec:0, vwc:0, dryback:0, drybackTarget:0, cwsi:0, phase:'—', status:'optimal', spark:[], dryRoom:true},
-      {id:'mother', name:'Mother / Clone', stage:'Stock', week:0, strain:'Library', batch:'—', lightsOn:true,
-        vpd:0.95, temp:24.2, rh:68, ppfd:280, co2:800, ec:1.8, vwc:62, dryback:5, drybackTarget:8, cwsi:0.08, phase:'P1', status:'optimal', spark:[]},
+      {id:"veg", name:"Veg 1", stage:"Vegetative", stageKey:"veg", week:2, strain:"Gelato #41", batch:"LA-2604", lightsOn:true,
+        vpd:1.02, temp:25.1, rh:64, ppfd:430, co2:900, ec:2.6, vwc:58, dryback:8, cwsi:0.12, phase:"P2", status:"optimal",
+        sensors:{cornerDelta:0.4, cornerDeltaMins:0}, equip:{pumpW:6, co2Valve:"closed", dehuW:400},
+        irr:{lastShotMin:35, expectedIntervalMin:45}, blind:false},
+      {id:"flower-a", name:"Flower A", stage:"Early flower", stageKey:"early", week:3, strain:"Wedding Cake", batch:"LA-2588", lightsOn:true,
+        vpd:1.18, temp:26.0, rh:60, ppfd:910, co2:1290, ec:4.1, vwc:52, dryback:14, cwsi:0.22, phase:"P2", status:"optimal",
+        sensors:{cornerDelta:0.6, cornerDeltaMins:0}, equip:{pumpW:8, co2Valve:"open", dehuW:900},
+        irr:{lastShotMin:22, expectedIntervalMin:40}, blind:false},
+      {id:"flower-b", name:"Flower B", stage:"Bulk", stageKey:"bulk", week:6, strain:"MAC 1", batch:"LA-2571", lightsOn:true,
+        vpd:1.46, temp:27.3, rh:55, ppfd:1010, co2:1240, ec:5.0, vwc:49, dryback:6, cwsi:0.41, phase:"P2", status:"warn",
+        sensors:{cornerDelta:2.6, cornerDeltaMins:70}, equip:{pumpW:9, co2Valve:"open", dehuW:1300},
+        irr:{lastShotMin:18, expectedIntervalMin:35}, blind:false},
+      {id:"flower-c", name:"Flower C", stage:"Finish / flush", stageKey:"finish", week:10, strain:"Runtz", batch:"LA-2540", lightsOn:true,
+        vpd:1.21, temp:25.0, rh:58, ppfd:860, co2:1080, ec:2.2, vwc:47, dryback:18, cwsi:0.28, phase:"P3", status:"optimal",
+        sensors:{cornerDelta:0.5, cornerDeltaMins:0}, equip:{pumpW:7, co2Valve:"closed", dehuW:800},
+        irr:{lastShotMin:30, expectedIntervalMin:60}, blind:false},
+      {id:"dry", name:"Dry / Cure", stage:"Dry room", stageKey:"dry", week:0, strain:"Mixed lot", batch:"LA-2533", lightsOn:false,
+        vpd:0.82, temp:18.2, rh:60, ppfd:0, co2:600, ec:0, vwc:0, dryback:0, cwsi:0, phase:"—", status:"optimal",
+        sensors:{cornerDelta:0, cornerDeltaMins:0}, equip:{pumpW:0, co2Valve:"closed", dehuW:600},
+        irr:null, blind:false, dryRoom:true},
+      {id:"mother", name:"Mother / Clone", stage:"Stock", stageKey:"mother", week:0, strain:"Library", batch:"—", lightsOn:true,
+        vpd:0.95, temp:24.2, rh:68, ppfd:280, co2:800, ec:1.8, vwc:62, dryback:5, cwsi:0.08, phase:"P1", status:"optimal",
+        sensors:{cornerDelta:0.3, cornerDeltaMins:0}, equip:{pumpW:5, co2Valve:"closed", dehuW:300},
+        irr:{lastShotMin:20, expectedIntervalMin:50}, blind:false},
+    ],
+    zones:[
+      {id:"Z1", roomId:"flower-b", name:"Flower B · Zone 1", phase:"P2", vwc:49, ec:5.0, p3Floor:40, valve:"closed", lastShot:"13:42", response:3.2, auto:true},
+      {id:"Z2", roomId:"flower-b", name:"Flower B · Zone 2", phase:"P2", vwc:47, ec:5.2, p3Floor:40, valve:"closed", lastShot:"13:42", response:2.8, auto:true},
+      {id:"Z3", roomId:"flower-a", name:"Flower A · Zone 1", phase:"P2", vwc:52, ec:4.1, p3Floor:42, valve:"closed", lastShot:"14:05", response:3.6, auto:true},
+      {id:"Z4", roomId:"veg", name:"Veg 1 · Zone 1", phase:"P2", vwc:58, ec:2.6, p3Floor:45, valve:"closed", lastShot:"14:10", response:4.1, auto:false},
     ],
     batches:[
-      {id:'LA-2571', strain:'MAC 1', room:'Flower B', stage:'Bulk wk6', harvest:'2026-06-28', yield:18.4, plants:108, progress:62, readiness:'Trichome modeling projects 28–30% cloudy by Jun 26; hold flush start to Jun 21.'},
-      {id:'LA-2588', strain:'Wedding Cake', room:'Flower A', stage:'Early wk3', harvest:'2026-07-18', yield:21.0, plants:108, progress:31, readiness:'On a healthy stacking curve, tracking last cycle +4%. No action.'},
-      {id:'LA-2540', strain:'Runtz', room:'Flower C', stage:'Flush wk10', harvest:'2026-06-09', yield:16.2, plants:96, progress:91, readiness:'Ready window opens in ~3 days. Schedule trim team for Jun 8.'},
-      {id:'LA-2604', strain:'Gelato #41', room:'Veg 1', stage:'Veg wk2', harvest:'2026-08-05', yield:0, plants:120, progress:14, readiness:'Vegetative — flip target Jun 18 once canopy fills.'},
-      {id:'LA-2533', strain:'Mixed lot', room:'Dry / Cure', stage:'Drying d4', harvest:'curing', yield:15.1, plants:0, progress:78, readiness:'Water activity trending to 0.62; target cure burp schedule daily.'},
+      {id:"LA-2571", strain:"MAC 1", room:"Flower B", stage:"Bulk wk6", harvest:"2026-06-28", yield:18.4, plants:108, progress:62, readiness:"Trichome modeling projects 28–30% cloudy by Jun 26; hold flush start to Jun 21."},
+      {id:"LA-2588", strain:"Wedding Cake", room:"Flower A", stage:"Early wk3", harvest:"2026-07-18", yield:21.0, plants:108, progress:31, readiness:"On a healthy stacking curve, tracking last cycle +4%. No action."},
+      {id:"LA-2540", strain:"Runtz", room:"Flower C", stage:"Flush wk10", harvest:"2026-06-09", yield:16.2, plants:96, progress:91, readiness:"Ready window opens in ~3 days. Schedule trim team for Jun 8."},
+      {id:"LA-2604", strain:"Gelato #41", room:"Veg 1", stage:"Veg wk2", harvest:"2026-08-05", yield:0, plants:120, progress:14, readiness:"Vegetative — flip target Jun 18 once canopy fills."},
+      {id:"LA-2533", strain:"Mixed lot", room:"Dry / Cure", stage:"Drying d4", harvest:"curing", yield:15.1, plants:0, progress:78, readiness:"Water activity trending to 0.62; target cure burp schedule daily."},
     ],
-    alerts:[], watch:[], insights:[],
-    zones:[
-      {id:1,name:'Flower B · Zone 1',phase:'P2',vwc:49,ec:5.0,drybackTarget:15,auto:true},
-      {id:2,name:'Flower B · Zone 2',phase:'P2',vwc:47,ec:5.2,drybackTarget:18,auto:true},
-      {id:3,name:'Flower A · Zone 1',phase:'P2',vwc:52,ec:4.1,drybackTarget:15,auto:true},
-      {id:4,name:'Veg 1 · Zone 1',phase:'P2',vwc:58,ec:2.6,drybackTarget:12,auto:false},
-    ],
+    alerts:[], watch:[], insights:[], headline:{sev:"ok",big:"…",line:""},
     schedule:[
-      {t:'06:00',label:'P1 ramp — first shot',zone:'all flower',done:true},
-      {t:'08:30',label:'P2 maintenance',zone:'Flower A/B',done:true},
-      {t:'11:00',label:'P2 maintenance',zone:'Flower A/B',done:true},
-      {t:'14:00',label:'P2 EC-stack shot',zone:'Flower B',done:false},
-      {t:'17:30',label:'Last shot — P3 dryback',zone:'all flower',done:false},
+      {t:"06:00",label:"P1 ramp — first shot",zone:"all flower",done:true},
+      {t:"08:30",label:"P2 maintenance",zone:"Flower A/B",done:true},
+      {t:"11:00",label:"P2 maintenance",zone:"Flower A/B",done:true},
+      {t:"14:00",label:"P2 EC-stack shot",zone:"Flower B",done:false},
+      {t:"17:30",label:"Last shot — P3 dryback",zone:"all flower",done:false},
     ],
     logs:[
-      {id:1,icon:'doc',text:'Batch LA-2540 moved Flower C → flush protocol',who:'C. Ngata',when:'today 09:14'},
-      {id:2,icon:'drop',text:'Nutrient tank A reconstituted, EC 3.0 / pH 5.9',who:'auto-dosing',when:'today 07:02'},
-      {id:3,icon:'harvest',text:'Trim session opened — LA-2533 Mixed lot',who:'J. Rabbit',when:'today 08:30'},
-      {id:4,icon:'check',text:'Daily GMP room checks completed (6/6 rooms)',who:'P. Stewart',when:'today 06:45'},
+      {id:1,icon:"doc",text:"Batch LA-2540 moved Flower C → flush protocol",who:"C. Ngata",when:"today 09:14"},
+      {id:2,icon:"drop",text:"Nutrient tank A reconstituted, EC 3.0 / pH 5.9",who:"auto-dosing",when:"today 07:02"},
+      {id:3,icon:"harvest",text:"Trim session opened — LA-2533 Mixed lot",who:"J. Rabbit",when:"today 08:30"},
+      {id:4,icon:"check",text:"Daily GMP room checks completed (6/6 rooms)",who:"P. Stewart",when:"today 06:45"},
     ],
     energyTips:[
-      'Flower B drawing 4.1 kW — shift 30% of dehumidification to the off-peak window after 22:00 to cut ~$180/wk.',
-      'Veg 1 PPFD headroom: dimming to 380 µmol saves ~0.4 kW with no growth penalty at wk2.',
-      'Facility power factor 0.94 — within target; no correction needed.',
+      "Flower B drawing 4.1 kW — shift 30% of dehumidification to the off-peak window after 22:00 to cut ~$180/wk.",
+      "Veg 1 PPFD headroom: dimming to 380 µmol saves ~0.4 kW with no growth penalty at wk2.",
+      "Facility power factor 0.94 — within target; no correction needed.",
     ],
-    trim:{batch:'LA-2533', strain:'Mixed lot', startTs:Date.now()-1000*60*138, kg:9.4, target:15.1, team:'3 trimmers', rate:1.36},
-    aiMessages:[], aiSuggestions:['Why is Flower B stressed?','Predict next harvest','Where is power going?','Any rooms drifting?'],
+    trim:{batch:"LA-2533", strain:"Mixed lot", startTs:Date.now()-1000*60*138, kg:9.4, target:15.1, team:"3 trimmers", rate:1.36},
+    aiMessages:[], aiSuggestions:["Why is Flower B stressed?","Predict next harvest","Where is power going?","Any rooms drifting?"],
+    scenarios:[
+      {id:"hotspot",  label:"Corner hotspot",       hint:"AC throw misses a corner"},
+      {id:"deadhead", label:"Pump dead-head",       hint:"pump on, valves shut"},
+      {id:"co2dark",  label:"CO₂ high in the dark", hint:"solenoid stuck open"},
+      {id:"flatline", label:"EC probe flatline",    hint:"system goes blind"},
+      {id:"quiet",    label:"Engine goes quiet",    hint:"missed irrigation shots"},
+      {id:"ecstack",  label:"EC stack, no dryback", hint:"salt building up"},
+    ],
 
     /* ---------- init ---------- */
     init(){
-      this.rooms.forEach(r=>{ r.spark = Array.from({length:24},(_,i)=> r.vpd + Math.sin(i/3)*0.06 + (Math.random()-.5)*0.04); });
+      this.rooms.forEach(r=>{ seedHist(r); r.derived = deriveSignals(r); });
       this.recompute();
-      this.aiMessages=[{role:'ai',text:'Facility context loaded — 6 rooms, 5 active batches. Ask me anything, or tap a suggestion. I read every sensor and every batch so you don\'t have to.'}];
+      this.aiMessages=[{role:"ai",text:"Facility context loaded — 6 rooms, 5 active batches. Ask me anything, or tap a suggestion. I read every sensor and every batch so you do not have to."}];
       this.$nextTick(()=>{ this.mountCharts(); });
-      this.$watch('view',()=> this.$nextTick(()=>this.mountCharts()));
-      this.$watch('roomModal',v=>{ if(v) this.$nextTick(()=>this.mountRoomHist(v)); });
-      this.$watch('cmdOpen',v=>{ if(v) this.$nextTick(()=>this.$refs.cmd&&this.$refs.cmd.focus()); });
-      try{ this.notes = JSON.parse(localStorage.getItem('la.notes'))||{}; }catch(e){}
-      this._tid = setInterval(()=>this.tick(), 6000);
+      this.$watch("view",()=> this.$nextTick(()=>this.mountCharts()));
+      this.$watch("roomModal",v=>{ if(v) this.$nextTick(()=>mountRoomHistChart(v)); });
+      this.$watch("cmdOpen",v=>{ if(v) this.$nextTick(()=>this.$refs.cmd&&this.$refs.cmd.focus()); });
+      try{ this.notes = JSON.parse(localStorage.getItem("la.notes"))||{}; }catch(e){}
+      TICK_ID = setInterval(()=>this.tick(), 6000);
     },
 
     /* ---------- live tick ---------- */
     tick(){
       const j=(v,a)=> v + (Math.random()-.5)*a;
       this.rooms.forEach(r=>{
-        if(r.dryRoom){ r.temp=j(r.temp,.15); r.rh=Math.max(55,Math.min(64,j(r.rh,.6))); r.vpd=+(((1-r.rh/100)*0.95)).toFixed(2); }
+        if(r.dryRoom){ r.temp=+j(r.temp,.15).toFixed(1); r.rh=+Math.max(55,Math.min(64,j(r.rh,.6))).toFixed(1); r.vpd=+(((1-r.rh/100)*0.95)).toFixed(2); }
         else {
           r.temp=+j(r.temp,.12).toFixed(1);
-          r.rh=Math.max(45,Math.min(72,j(r.rh,.7)));
+          r.rh=+Math.max(45,Math.min(72,j(r.rh,.7))).toFixed(1);
           if(r.lightsOn) r.ppfd=Math.max(0,Math.round(j(r.ppfd,12)));
           r.co2=Math.round(j(r.co2,18));
-          r.ec=+Math.max(0,j(r.ec,.04)).toFixed(2);
-          // VPD derived loosely from temp/rh for realism
+          if(!r.frozenEc) r.ec=+Math.max(0,j(r.ec, r.ecStacking?0.02:0.04) + (r.ecStacking?0.05:0)).toFixed(2);
+          if(!r.frozenVwc) r.vwc=+Math.max(20,j(r.vwc,.5)).toFixed(1);
           const svp=0.61078*Math.exp(17.27*r.temp/(r.temp+237.3));
           r.vpd=+Math.max(0.4,(svp*(1-r.rh/100))).toFixed(2);
           r.cwsi=+Math.max(0,Math.min(1, r.cwsi + (r.vpd>1.5?0.01:-0.008) + (Math.random()-.5)*0.01)).toFixed(2);
+          if(r.sensors.cornerDelta>1) r.sensors.cornerDeltaMins += 0.1;
+          if(r.irr) r.irr.lastShotMin = r.irrQuiet ? r.irr.lastShotMin + 0.1 : Math.max(2, j(r.irr.lastShotMin, 6));
         }
-        r.spark.push(r.vpd); if(r.spark.length>24) r.spark.shift();
+        pushHist(r);
+        r.derived = deriveSignals(r);
       });
       this.recompute();
-      // trim drift
       if(this.trim.kg < this.trim.target) this.trim.kg = +Math.min(this.trim.target, this.trim.kg + Math.random()*0.12).toFixed(2);
       this.lastUpdated=Date.now(); this.now=Date.now();
       this.updateCharts();
     },
 
-    /* ---------- inference: status + advisories + watchlist ---------- */
+    /* ---------- inference: delegate to the pure rules engine ---------- */
     recompute(){
-      const alerts=[], watch=[], insights=[];
+      const { advisories, watchlist } = runRules(this.rooms, this.zones);
+      // room status = worst advisory touching it (headline unit is plant state, not a sensor)
       this.rooms.forEach(r=>{
-        let sev='optimal'; const reasons=[];
-        if(!r.dryRoom){
-          if(r.vpd>1.55){ sev=worse(sev,'warn'); }
-          if(r.cwsi>=0.5){ sev=worse(sev,'warn'); }
-          if(r.cwsi>=0.7){ sev=worse(sev,'crit'); }
-          if(r.lightsOn && r.ppfd>0 && r.ppfd<700 && r.stage!=='Vegetative' && r.id!=='mother'){ sev=worse(sev,'warn'); }
-        }
-        // hotspot advisory (real F2 pattern)
-        if(r.hotspot){
-          sev=worse(sev,'warn');
-          alerts.push(adv('crit'==sev?'crit':'warn','fire',r.name,'Back-left corner running hot',
-            `${r.name} back-left is ~2.6 °C over room average and VPD is ${r.vpd.toFixed(2)} kPa — uneven transpiration, those plants stress first.`,
-            'Check AC throw and add a circulation fan to the back-left corner. Re-check Δ in 30 min.','high'));
-        }
-        if(!r.dryRoom && r.vpd>1.55){
-          alerts.push(adv('warn','wind',r.name,'VPD above the bulk band',
-            `${r.name} VPD is ${r.vpd.toFixed(2)} kPa, over the 1.0–1.4 target. Sustained, this closes stomata and slows stacking.`,
-            'Raise RH 4–6% or trim leaf-zone airflow. Aim VPD back to ~1.2 kPa.','high'));
-        }
-        if(!r.dryRoom && r.drybackTarget>0 && r.dryback < r.drybackTarget*0.6){
-          watch.push({id:'db-'+r.id,title:`${r.name}: shallow dryback`,detail:`Dryback ${r.dryback}% vs ${r.drybackTarget}% target — substrate staying wet, EC will converge slowly.`});
-        }
-        if(!r.dryRoom && r.id==='flower-c' && r.ec<2.5){
-          watch.push({id:'ec-'+r.id,title:`${r.name}: EC low (flush)`,detail:`Pore EC ${r.ec.toFixed(1)} — expected during flush. On track for finish.`});
-        }
+        let sev="optimal";
+        advisories.filter(a=>a.roomId===r.id).forEach(a=>{ sev=worse(sev, a.sev); });
         r.status = sev;
-        r.weekLabel = r.dryRoom?'day 4':(r.id==='mother'?'stock':'wk '+r.week);
+        r.weekLabel = r.dryRoom?"day 4":(r.id==="mother"?"stock":"wk "+r.week);
         r.plantTruth = this.truth(r);
       });
-      // facility-level AI insights
-      const hot = this.rooms.find(r=>r.hotspot);
-      if(hot) insights.push({id:'i1',sev:'warn',title:`${hot.name}: corner hotspot likely AC throw`,
-        summary:`VPD ${hot.vpd.toFixed(2)} kPa with a 2.6 °C corner gradient. Root cause: airflow not reaching back-left. Fix airflow before adjusting climate setpoints.`,
-        body:`I correlated the back-left sensor against room average over 6 h. The gradient is persistent and tracks lights-on, not outside weather — that points to internal airflow, not the chiller. Adjusting the room RH setpoint would over-humidify the other 80% of canopy. Recommend a circulation fan aimed at the back-left corner and re-evaluate.`});
-      insights.push({id:'i2',sev:'ok',title:'Harvest readiness — LA-2540 Runtz',
-        summary:'Flower C flush wk10. Trichome + dryback model says ready window opens in ~3 days. Book the trim team for Jun 8.',
-        body:'Runtz in Flower C is at 91% of its modeled cycle. Dryback has widened to 18% and EC has dropped to flush levels. Projected peak-ripeness window: Jun 8–11. Recommend scheduling the trim team for the morning of Jun 8.'});
-      insights.push({id:'i3',sev:'ok',title:'Flower A stacking +4% vs last cycle',
-        summary:'Wedding Cake tracking ahead of the prior run at the same node count. Hold current steering.',
-        body:'Comparing canopy height and internode spacing to batch LA-2511 at the same week, Flower A is ~4% ahead. Current generative steering is working — no changes recommended.'});
-
-      // keep acked alerts, merge new (dedupe by title+room)
-      const keep = this.alerts.filter(a=>a.acked);
-      const seen = new Set(keep.map(a=>a.room+'|'+a.title));
-      alerts.forEach(a=>{ if(!seen.has(a.room+'|'+a.title)){ keep.push(a); seen.add(a.room+'|'+a.title); }});
-      this.alerts = keep;
-      this.watch = watch;
-      this.insights = insights;
+      // merge: keep acknowledged, add new, drop resolved
+      const acked = new Set(this.alerts.filter(a=>a.acked).map(a=>a.id));
+      this.alerts = advisories.map(a=>({ ...a, acked:acked.has(a.id), showEv:(this.alerts.find(x=>x.id===a.id)||{}).showEv||false }));
+      this.watch = watchlist;
+      this.headline = computeHeadline(this.alerts.filter(a=>!a.acked), this.watch, this.rooms);
+      this.insights = this.buildInsights();
+    },
+    buildInsights(){
+      const out=[];
+      const top = this.alerts.filter(a=>!a.acked)[0];
+      if(top) out.push({id:"i-top",sev:top.sev,title:`${top.room}: ${top.title}`,
+        summary:top.detail, body:top.detail+"\n\nNext step: "+top.action+"\n\nEvidence: "+top.evidence});
+      out.push({id:"i2",sev:"ok",title:"Harvest readiness — LA-2540 Runtz",
+        summary:"Flower C flush wk10. Trichome + dryback model says ready window opens in ~3 days. Book the trim team for Jun 8.",
+        body:"Runtz in Flower C is at 91% of its modeled cycle. Dryback has widened to 18% and EC has dropped to flush levels. Projected peak-ripeness window: Jun 8–11. Recommend scheduling the trim team for the morning of Jun 8."});
+      out.push({id:"i3",sev:"ok",title:"Flower A stacking +4% vs last cycle",
+        summary:"Wedding Cake tracking ahead of the prior run at the same node count. Hold current steering.",
+        body:"Comparing canopy height and internode spacing to batch LA-2511 at the same week, Flower A is ~4% ahead. Current generative steering is working — no changes recommended."});
+      return out;
     },
     truth(r){
       if(r.dryRoom) return `Dry room steady — ${r.temp.toFixed(1)} °C / ${Math.round(r.rh)}% RH, VPD ${r.vpd.toFixed(2)}. Good slow dry.`;
-      if(r.status==='crit') return `${r.name} is stressed and needs action now — see advisories.`;
-      if(r.status==='warn') return `${r.name} is drifting out of band. One thing to sort out below.`;
+      if(r.blind) return `${r.name} is partially blind — a substrate probe is frozen. Climate looks fine; substrate inferences suspended.`;
+      if(r.status==="crit") return `${r.name} is stressed and needs action now — see advisories.`;
+      if(r.status==="warn") return `${r.name} is drifting out of band. One thing to sort out below.`;
       return `${r.name} on track — transpiring normally, climate in band, steering ${r.phase}.`;
     },
 
     /* ---------- computed ---------- */
-    facilityStatus(){
-      const crit=this.rooms.filter(r=>r.status==='crit').length;
-      const warn=this.rooms.filter(r=>r.status==='warn').length;
-      if(crit) return {sev:'crit',big:`${crit} room${crit>1?'s':''} need action now`,line:'Urgent advisories below — act before it reaches the plant.'};
-      if(warn) return {sev:'warn',big:`${warn} room${warn>1?'s':''} to sort out`,line:this.rooms.filter(r=>r.status==='warn').map(r=>r.name).join(', ')+' drifting out of band.'};
-      return {sev:'ok',big:'All rooms on track',line:'6 rooms steering as intended. Nothing needs you — the AI is watching the leading indicators.'};
-    },
+    facilityStatus(){ return this.headline; },
+    blindRooms(){ return this.rooms.filter(r=>r.blind); },
     kpis(){
       const power=this.rooms.reduce((s,r)=> s + (r.lightsOn?2.1:0.5) + r.ppfd/900, 1.2);
       const avgVpd=this.rooms.filter(r=>!r.dryRoom).reduce((s,r)=>s+r.vpd,0)/5;
-      const canopyUtil=86;
       return [
-        {label:'Facility',value:this.facilityStatus().sev==='ok'?'Healthy':this.facilityStatus().sev==='warn'?'Attention':'Critical',icon:'leaf',
-          tint:this.facilityStatus().sev==='ok'?'text-emerald-400':this.facilityStatus().sev==='warn'?'text-amber-400':'text-red-400',
-          sub:this.rooms.filter(r=>r.status!=='optimal').length+' rooms flagged'},
-        {label:'Active canopy',value:'312',unit:'m²',icon:'rooms',sub:canopyUtil+'% utilised',trendUp:true},
-        {label:'Live power',value:power.toFixed(1),unit:'kW',icon:'power',tint:'text-amber-400',sub:'−6% vs yesterday',trendDown:true},
-        {label:'Next harvest',value:'3d',icon:'harvest',tint:'text-emerald-400',sub:'LA-2540 · ~16.2 kg'},
-        {label:'Avg VPD',value:avgVpd.toFixed(2),unit:'kPa',icon:'wind',tint:avgVpd>1.4?'text-amber-400':'text-emerald-400',sub:avgVpd>1.4?'above band':'in band'},
-        {label:'Open tasks',value:this.activeAlerts().length,icon:'alerts',tint:this.activeAlerts().length?'text-amber-400':'text-emerald-400',sub:'high priority'},
+        {label:"Facility",value:this.headline.sev==="ok"?"Healthy":this.headline.sev==="warn"?"Attention":"Critical",icon:"leaf",
+          tint:this.headline.sev==="ok"?"text-emerald-400":this.headline.sev==="warn"?"text-amber-400":"text-red-400",
+          sub:this.rooms.filter(r=>r.status!=="optimal").length+" rooms flagged"},
+        {label:"Active canopy",value:"312",unit:"m²",icon:"rooms",sub:"86% utilised",trendUp:true},
+        {label:"Live power",value:power.toFixed(1),unit:"kW",icon:"power",tint:"text-amber-400",sub:"−6% vs yesterday",trendDown:true},
+        {label:"Next harvest",value:"3d",icon:"harvest",tint:"text-emerald-400",sub:"LA-2540 · ~16.2 kg"},
+        {label:"Avg VPD",value:avgVpd.toFixed(2),unit:"kPa",icon:"wind",tint:avgVpd>1.4?"text-amber-400":"text-emerald-400",sub:avgVpd>1.4?"above band":"in band"},
+        {label:"Open tasks",value:this.activeAlerts().length,icon:"alerts",tint:this.activeAlerts().length?"text-amber-400":"text-emerald-400",sub:"high priority"},
       ];
     },
-    activeAlerts(){ return this.alerts.filter(a=>!a.acked).sort((a,b)=> (a.sev==='crit'?0:1)-(b.sev==='crit'?0:1)); },
+    activeAlerts(){ return this.alerts.filter(a=>!a.acked); },
     unacked(){ return this.alerts.filter(a=>!a.acked); },
     energyKpis(){
       const p=this.rooms.reduce((s,r)=> s + (r.lightsOn?2.1:0.5) + r.ppfd/900,1.2);
       return [
-        {label:'Live draw',value:p.toFixed(1)+' kW',sub:'whole facility'},
-        {label:'Today',value:(p*13.4).toFixed(0)+' kWh',sub:'≈ $'+(p*13.4*0.28).toFixed(0)+' @ $0.28'},
-        {label:'Lighting',value:'58%',sub:'of total load'},
-        {label:'Power factor',value:'0.94',sub:'within target'},
+        {label:"Live draw",value:p.toFixed(1)+" kW",sub:"whole facility"},
+        {label:"Today",value:(p*13.4).toFixed(0)+" kWh",sub:"≈ $"+(p*13.4*0.28).toFixed(0)+" @ $0.28"},
+        {label:"Lighting",value:"58%",sub:"of total load"},
+        {label:"Power factor",value:"0.94",sub:"within target"},
       ];
     },
 
     /* ---------- room detail helpers ---------- */
     room(id){ return this.rooms.find(r=>r.id===id); },
+    roomZones(r){ return this.zones.filter(z=>z.roomId===r.id); },
+    stateTiles(r){
+      const d=r.derived; if(!d) return [];
+      const b=bandFor(r);
+      const tiles=[
+        {k:"stress",label:"Plant stress",val:d.stress.v.toFixed(2),sub:"CWSI · <"+b.cwsiMax+" good",s:d.stress.s},
+        {k:"transp",label:"Transpiration",val:(!r.lightsOn||r.dryRoom)?"—":d.transp.v+"%",sub:(!r.lightsOn||r.dryRoom)?"lights off":"is it drinking",s:d.transp.s},
+        {k:"leafvpd",label:"Leaf VPD",val:d.leafVpd.v===null?"—":d.leafVpd.v.toFixed(2),sub:d.leafVpd.v===null?"lights off":"band "+b.vpd[0]+"–"+b.vpd[1]+" kPa",s:d.leafVpd.s},
+        {k:"dryback",label:"Dryback",val:d.dryback.target?d.dryback.v.toFixed(0)+"%":"—",sub:d.dryback.target?"target "+d.dryback.target+"% · "+d.dryback.rate+"%/hr":"n/a",s:d.dryback.s},
+        {k:"ec",label:"Pore EC (fused)",val:r.blind?"blind":d.poreEc.v.toFixed(1),sub:r.blind?"probe frozen":"band "+d.poreEc.target[0]+"–"+d.poreEc.target[1]+(d.poreEc.trend>0.01?" · rising":d.poreEc.trend<-0.01?" · falling":" · flat"),s:r.blind?"warn":d.poreEc.s},
+        {k:"flags",label:"Stress flags",val:(d.flags.substrate||d.flags.lightLoad)?[d.flags.substrate?"substrate":null,d.flags.lightLoad?"light load":null].filter(Boolean).join(" + "):"none",sub:"fused binaries",s:(d.flags.substrate||d.flags.lightLoad)?"warn":"ok"},
+      ];
+      return tiles;
+    },
+    tileCls(s){ return s==="warn"?"text-amber-400":s==="watch"?"text-amber-300":"text-emerald-400"; },
     roomMetrics(r){
-      const b=(x,lo,hi)=> x<lo||x>hi?'text-amber-400':'text-emerald-400';
+      const b=bandFor(r);
+      const cls=(x,lo,hi)=> x<lo||x>hi?"text-amber-400":"text-emerald-400";
       const out=[
-        {k:'vpd',label:'VPD',val:r.vpd.toFixed(2)+' kPa',sub:'target 1.0–1.4',cls:b(r.vpd,1.0,1.45)},
-        {k:'temp',label:'Temp',val:r.temp.toFixed(1)+' °C',sub:'target 24–26',cls:b(r.temp,24,26.5)},
-        {k:'rh',label:'RH',val:Math.round(r.rh)+' %',sub:'target 58–65',cls:b(r.rh,55,66)},
-        {k:'cwsi',label:'Plant stress',val:r.cwsi.toFixed(2),sub:'CWSI · <0.3 good',cls:b(r.cwsi,-1,0.4)},
+        {k:"vpd",label:"VPD",val:r.vpd.toFixed(2)+" kPa",sub:"band "+b.vpd[0]+"–"+b.vpd[1],cls:cls(r.vpd,b.vpd[0],b.vpd[1])},
+        {k:"temp",label:"Temp",val:r.temp.toFixed(1)+" °C",sub:"band "+b.temp[0]+"–"+b.temp[1],cls:cls(r.temp,b.temp[0],b.temp[1])},
+        {k:"rh",label:"RH",val:Math.round(r.rh)+" %",sub:"band "+b.rh[0]+"–"+b.rh[1],cls:cls(r.rh,b.rh[0],b.rh[1])},
+        {k:"cwsi",label:"Plant stress",val:r.cwsi.toFixed(2),sub:"CWSI · <"+b.cwsiMax+" good",cls:cls(r.cwsi,-1,b.cwsiMax+0.1)},
       ];
       if(!r.dryRoom){
-        out.push({k:'ppfd',label:'PPFD',val:r.lightsOn?Math.round(r.ppfd):'dark',sub:'µmol/m²/s',cls:'text-slate-200'});
-        out.push({k:'co2',label:'CO₂',val:Math.round(r.co2),sub:'ppm',cls:b(r.co2,1100,1500)});
-        out.push({k:'ec',label:'Pore EC',val:r.ec.toFixed(1),sub:'mS/cm',cls:'text-slate-200'});
-        out.push({k:'db',label:'Dryback',val:r.dryback+'%',sub:'target '+r.drybackTarget+'%',cls:b(r.dryback,r.drybackTarget*0.6,99)});
+        out.push({k:"ppfd",label:"PPFD",val:r.lightsOn?Math.round(r.ppfd):"dark",sub:"µmol/m²/s",cls:"text-slate-200"});
+        out.push({k:"co2",label:"CO₂",val:Math.round(r.co2),sub:"ppm",cls:cls(r.co2,b.co2[0],b.co2[1])});
+        out.push({k:"ec",label:"Pore EC",val:r.ec.toFixed(1),sub:"mS/cm",cls:r.blind?"text-amber-400":"text-slate-200"});
+        out.push({k:"db",label:"Dryback",val:r.dryback.toFixed(0)+"%",sub:"target "+b.drybackTarget+"%",cls:cls(r.dryback,b.drybackTarget*0.6,99)});
       }
       return out;
     },
     setpointRows(r){
+      const b=bandFor(r);
       const mk=(label,actual,target,lo,hi)=>{
         const span=hi-lo; const ap=Math.max(0,Math.min(100,(actual-lo)/span*100)); const tp=Math.max(0,Math.min(100,(target-lo)/span*100));
-        const dev=Math.abs(actual-target)/(span)>0.18; return {label,actual:typeof actual==='number'?actual.toFixed(1):actual,target,actualPct:ap,targetPct:tp,devCls:dev?'bg-amber-400':'bg-emerald-500'};
+        const dev=Math.abs(actual-target)/(span)>0.18; return {label,actual:typeof actual==="number"?actual.toFixed(1):actual,target,actualPct:ap,targetPct:tp,devCls:dev?"bg-amber-400":"bg-emerald-500"};
       };
-      if(r.dryRoom) return [mk('Temp °C',r.temp,18,12,24),mk('RH %',r.rh,60,45,72)];
-      return [mk('Temp °C',r.temp,25,20,30),mk('RH %',r.rh,r.stage==='Bulk'?58:62,45,75),mk('VPD kPa',r.vpd,1.2,0.6,2.0),mk('Pore EC',r.ec,6.0,0,8)];
+      if(r.dryRoom) return [mk("Temp °C",r.temp,18,12,24),mk("RH %",r.rh,60,45,72)];
+      return [mk("Temp °C",r.temp,(b.temp[0]+b.temp[1])/2,20,30),mk("RH %",r.rh,(b.rh[0]+b.rh[1])/2,45,75),
+              mk("VPD kPa",r.vpd,+((b.vpd[0]+b.vpd[1])/2).toFixed(1),0.6,2.0),mk("Pore EC",r.ec,(b.ec[0]+b.ec[1])/2,0,8)];
     },
-    vpdJudge(r){ return r.vpd>1.5?'too dry':r.vpd<0.9?'too humid':'in band'; },
+    vpdJudge(r){ const b=bandFor(r); return r.vpd>b.vpd[1]?"too dry":r.vpd<b.vpd[0]?"too humid":"in band"; },
+    basementRows(){
+      return this.rooms.map(r=>{
+        const zs=this.zones.filter(z=>z.roomId===r.id);
+        return { id:r.id, name:r.name,
+          temp:r.temp.toFixed(1), rh:Math.round(r.rh), vpd:r.vpd.toFixed(2),
+          ppfd:r.lightsOn?Math.round(r.ppfd):"dark", co2:Math.round(r.co2),
+          ec:r.dryRoom?"—":r.ec.toFixed(2), vwc:r.dryRoom?"—":r.vwc.toFixed(1),
+          pump:r.equip.pumpW+" W", co2v:r.equip.co2Valve,
+          valves:zs.length? zs.filter(z=>z.valve==="open").length+"/"+zs.length+" open":"—",
+          health:r.blind?"probe frozen":"ok" };
+      });
+    },
 
-    /* ---------- charts ---------- */
-    chartBase(){ return {responsive:false,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:600},
-      plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}; },
-    spark(id,data,color){
-      const c=document.getElementById(id); if(!c) return;
-      if(this._charts[id]) this._charts[id].destroy();
-      this._charts[id]=new Chart(c,{type:'line',data:{labels:data.map((_,i)=>i),datasets:[{data,borderColor:color,borderWidth:2,fill:true,
-        backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,48);g.addColorStop(0,color+'40');g.addColorStop(1,color+'00');return g;},
-        tension:.4,pointRadius:0}]},options:this.chartBase()});
+    /* ---------- bands editor (spec §4: envelopes are editable config) ---------- */
+    openBands(){ this.bandsDraft = JSON.parse(JSON.stringify(BANDS)); this.bandsOpen = true; },
+    bandStages(){ return ["veg","early","bulk","finish"]; },
+    saveBands(){
+      BANDS = JSON.parse(JSON.stringify(this.bandsDraft)); persistBands();
+      this.rooms.forEach(r=>{ r.derived = deriveSignals(r); });
+      this.recompute(); this.bandsOpen=false; this.toast("Bands saved — envelopes re-evaluated");
     },
+    resetBands(){ resetBandsToDefault(); this.bandsDraft = JSON.parse(JSON.stringify(BANDS));
+      this.rooms.forEach(r=>{ r.derived = deriveSignals(r); }); this.recompute(); this.toast("Bands reset to Athena-style defaults"); },
+
+    /* ---------- demo scenarios: perturb the seed so each fused rule can fire ---------- */
+    runScenario(id){
+      const R=(x)=>this.room(x);
+      if(id==="hotspot"){ const r=R("flower-a"); r.sensors.cornerDelta=2.9; r.sensors.cornerDeltaMins=45; }
+      if(id==="deadhead"){ const r=R("flower-b"); r.equip.pumpW=140; this.zones.filter(z=>z.roomId==="flower-b").forEach(z=>z.valve="closed"); }
+      if(id==="co2dark"){ const r=R("flower-c"); r.lightsOn=false; r.ppfd=0; r.co2=1150; r.equip.co2Valve="open"; }
+      if(id==="flatline"){ const r=R("flower-a"); r.frozenEc=true; const h=ensureHist(r.id); h.ec=h.ec.slice(0,-8).concat(Array(8).fill(r.ec)); }
+      if(id==="quiet"){ const r=R("flower-b"); r.irrQuiet=true; r.irr.lastShotMin=90; }
+      if(id==="ecstack"){ const r=R("flower-b"); r.ecStacking=true; r.ec=6.6; r.dryback=6;
+        const h=ensureHist(r.id); for(let i=0;i<10;i++) h.ec[h.ec.length-10+i]=+(5.8+i*0.08).toFixed(2); }
+      this.rooms.forEach(r=>{ r.derived = deriveSignals(r); });
+      this.recompute(); this.updateCharts();
+      this.toast("Scenario armed — watch the advisories");
+    },
+    resetDemo(){ location.reload(); },
+
+    /* ---------- charts (thin wrappers over the module-scope chart layer) ---------- */
     mountCharts(){
-      const col=(s)=> s==='crit'?'#f87171':s==='warn'?'#fbbf24':'#34d399';
-      if(this.view==='dashboard'||this.view==='rooms'){
-        this.rooms.forEach(r=>{ this.spark((this.view==='dashboard'?'dspark-':'rspark-')+r.id, r.spark, col(r.status)); });
+      const col=(s)=> s==="crit"?"#f87171":s==="warn"?"#fbbf24":"#34d399";
+      if(this.view==="dashboard"||this.view==="rooms"){
+        this.rooms.forEach(r=>{
+          const data = ensureHist(r.id).vpd.slice(-24);   // plain copy — never the reactive array
+          mountSpark((this.view==="dashboard"?"dspark-":"rspark-")+r.id, data, col(r.status));
+        });
       }
-      if(this.view==='dashboard') this.rebuildEnv();
-      if(this.view==='energy') this.mountPower();
+      if(this.view==="dashboard") mountEnvChart(this.trendRoom, this.trendRange);
+      if(this.view==="energy") mountPowerChart();
     },
     updateCharts(){
-      const col=(s)=> s==='crit'?'#f87171':s==='warn'?'#fbbf24':'#34d399';
-      this.rooms.forEach(r=>{ ['dspark-','rspark-'].forEach(pre=>{ const ch=this._charts[pre+r.id]; if(ch){ ch.data.datasets[0].data=[...r.spark]; ch.data.datasets[0].borderColor=col(r.status); ch.update('none'); }}); });
-      const env=this._charts['envChart']; if(env && this.view==='dashboard'){ const r=this.room(this.trendRoom); if(r){ env.data.datasets[0].data.push(r.temp); env.data.datasets[1].data.push(r.rh/3); env.data.datasets[2].data.push(r.vpd*15); [0,1,2].forEach(i=>{if(env.data.datasets[i].data.length>40)env.data.datasets[i].data.shift();}); env.data.labels.push(''); if(env.data.labels.length>40)env.data.labels.shift(); env.update('none'); }}
+      const col=(s)=> s==="crit"?"#f87171":s==="warn"?"#fbbf24":"#34d399";
+      this.rooms.forEach(r=>{
+        const data = ensureHist(r.id).vpd.slice(-24);
+        ["dspark-","rspark-"].forEach(p=> updateSpark(p+r.id, data, col(r.status)));
+      });
+      if(this.view==="dashboard") updateEnvChart(this.trendRoom, this.trendRange);
     },
-    rebuildEnv(){
-      const c=document.getElementById('envChart'); if(!c) return;
-      if(this._charts['envChart']) this._charts['envChart'].destroy();
-      const r=this.room(this.trendRoom)||this.rooms[1];
-      const n = this.trendRange==='6h'?24:this.trendRange==='24h'?40:48;
-      const temp=[],rh=[],vpd=[],labels=[];
-      for(let i=0;i<n;i++){ const t=25+Math.sin(i/4)*1.4+(Math.random()-.5)*.4; temp.push(+t.toFixed(1)); rh.push(+((60+Math.cos(i/5)*5)/3).toFixed(1)); vpd.push(+((1.15+Math.sin(i/4)*0.25)*15).toFixed(1)); labels.push(''); }
-      const ds=(label,data,color)=>({label,data,borderColor:color,backgroundColor:color+'18',borderWidth:2,tension:.4,pointRadius:0,fill:false});
-      this._charts['envChart']=new Chart(c,{type:'line',
-        data:{labels,datasets:[ds('Temp °C',temp,'#34d399'),ds('RH (÷3)',rh,'#22d3ee'),ds('VPD ×15',vpd,'#fbbf24')]},
-        options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:500},interaction:{mode:'index',intersect:false},
-          plugins:{legend:{display:true,labels:{color:'#94a3b8',boxWidth:10,boxHeight:10,usePointStyle:true,font:{size:11}}},
-            tooltip:{backgroundColor:'#11161d',borderColor:'#243',borderWidth:1}},
-          scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#64748b',font:{size:10}}}}}});
-    },
-    mountPower(){
-      const c=document.getElementById('powerChart'); if(!c) return;
-      if(this._charts['powerChart']) this._charts['powerChart'].destroy();
-      const data=[],labels=[]; for(let i=0;i<48;i++){ const h=(i/2); const day=h>=10&&h<22; data.push(+(day?6.5+Math.random()*1.2:2.4+Math.random()*0.6).toFixed(1)); labels.push(''); }
-      this._charts['powerChart']=new Chart(c,{type:'bar',data:{labels,datasets:[{data,backgroundColor:data.map(v=>v>5?'#fbbf24aa':'#34d39988'),borderRadius:3}]},
-        options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:500},plugins:{legend:{display:false}},
-          scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#64748b',font:{size:10},callback:v=>v+' kW'}}}}});
-    },
-    mountRoomHist(id){
-      const c=document.getElementById('roomHistChart'); if(!c) return;
-      if(this._charts['roomHistChart']) this._charts['roomHistChart'].destroy();
-      const r=this.room(id); const vpd=[],labels=[]; for(let i=0;i<48;i++){ vpd.push(+(r.vpd+Math.sin(i/5)*0.12+(Math.random()-.5)*0.05).toFixed(2)); labels.push(''); }
-      this._charts['roomHistChart']=new Chart(c,{type:'line',data:{labels,datasets:[{label:'VPD',data:vpd,borderColor:'#34d399',backgroundColor:'#34d39915',borderWidth:2,tension:.4,pointRadius:0,fill:true}]},
-        options:{responsive:true,maintainAspectRatio:false,animation:{duration:prefersReduced()?0:400},plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#64748b',font:{size:10}}}}}});
-    },
+    rebuildEnv(){ mountEnvChart(this.trendRoom, this.trendRange); },
 
     /* ---------- batches ---------- */
-    batchCols:[{k:'id',label:'Batch'},{k:'strain',label:'Strain'},{k:'room',label:'Room'},{k:'stage',label:'Stage'},{k:'harvest',label:'Harvest'},{k:'yield',label:'Yield'},{k:'progress',label:'Progress'}],
+    batchCols:[{k:"id",label:"Batch"},{k:"strain",label:"Strain"},{k:"room",label:"Room"},{k:"stage",label:"Stage"},{k:"harvest",label:"Harvest"},{k:"yield",label:"Yield"},{k:"progress",label:"Progress"}],
     filteredBatches(){
       let b=[...this.batches];
       const q=this.batchFilter.toLowerCase().trim();
       if(q) b=b.filter(x=>(x.strain+x.room+x.id+x.stage).toLowerCase().includes(q));
       const k=this.batchSort.k,d=this.batchSort.dir;
-      b.sort((x,y)=>{ let a=x[k],c=y[k]; if(typeof a==='string'){return a.localeCompare(c)*d;} return (a-c)*d; });
+      b.sort((x,y)=>{ let a=x[k],c=y[k]; if(typeof a==="string"){return a.localeCompare(c)*d;} return (a-c)*d; });
       return b;
     },
     sortBatches(k){ if(this.batchSort.k===k) this.batchSort.dir*=-1; else this.batchSort={k,dir:1}; },
 
     /* ---------- actions ---------- */
-    go(v){ this.view=v; window.scrollTo({top:0,behavior:prefersReduced()?'auto':'smooth'}); },
+    go(v){ this.view=v; window.scrollTo({top:0,behavior:prefersReduced()?"auto":"smooth"}); },
     openRoom(id){ this.roomModal=id; },
-    ackAlert(id){ const a=this.alerts.find(x=>x.id===id); if(a){a.acked=true; this.toast('Advisory acknowledged');} },
+    ackAlert(id){ const a=this.alerts.find(x=>x.id===id); if(a){a.acked=true; this.headline=computeHeadline(this.alerts.filter(x=>!x.acked),this.watch,this.rooms); this.toast("Advisory acknowledged");} },
     investigate(a){ const r=this.rooms.find(x=>x.name===a.room); if(r){ this.roomModal=r.id; } else this.aiOpen=true; },
-    openInsight(ins){ this.aiOpen=true; this.aiMessages.push({role:'user',text:ins.title}); this.aiThinking=true;
-      setTimeout(()=>{ this.aiThinking=false; this.aiMessages.push({role:'ai',text:ins.body}); this.scrollAI(); },700); this.scrollAI(); },
-    logWeight(){ this.trim.kg=+Math.min(this.trim.target,this.trim.kg+0.5).toFixed(1); this.toast('+0.5 kg logged ('+this.trim.kg+' kg total)'); },
-    completeBatch(){ this.toast('Batch '+this.trim.batch+' completed → moved to cure'); },
-    logCheck(r){ this.toast('Manual check logged for '+r.name); },
-    adjustTarget(r){ this.toast('Setpoint editor opened for '+r.name); },
-    simulateDrift(r){ r.cwsi=Math.min(1,r.cwsi+0.35); r.vpd=+(r.vpd+0.4).toFixed(2); r.temp=+(r.temp+1.2).toFixed(1); this.recompute(); this.updateCharts();
-      this.toast('Simulated drift in '+r.name+' — AI advisory generated'); },
-    generateReport(){ this.toast('Audit pack generating… INCB-style PDF queued'); setTimeout(()=>this.toast('Audit pack ready ✓'),1400); },
-    saveNotes(){ try{ localStorage.setItem('la.notes',JSON.stringify(this.notes)); this.notesSaved=true; setTimeout(()=>this.notesSaved=false,1500);}catch(e){} },
-    toast(msg){ const id=++this._tid; this.toasts.push({id,msg}); setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600); },
+    openInsight(ins){ this.aiOpen=true; this.aiMessages.push({role:"user",text:ins.title}); this.aiThinking=true;
+      setTimeout(()=>{ this.aiThinking=false; this.aiMessages.push({role:"ai",text:ins.body}); this.scrollAI(); },700); this.scrollAI(); },
+    logWeight(){ this.trim.kg=+Math.min(this.trim.target,this.trim.kg+0.5).toFixed(1); this.toast("+0.5 kg logged ("+this.trim.kg+" kg total)"); },
+    completeBatch(){ this.toast("Batch "+this.trim.batch+" completed → moved to cure"); },
+    logCheck(r){ this.toast("Manual check logged for "+r.name); },
+    adjustTarget(r){ this.openBands(); },
+    generateReport(){ this.toast("Audit pack generating… INCB-style PDF queued"); setTimeout(()=>this.toast("Audit pack ready ✓"),1400); },
+    saveNotes(){ try{ localStorage.setItem("la.notes",JSON.stringify(this.notes)); this.notesSaved=true; setTimeout(()=>this.notesSaved=false,1500);}catch(e){} },
+    toast(msg){ const id=Date.now()+Math.random(); this.toasts.push({id,msg}); setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600); },
 
     /* ---------- AI ---------- */
-    askAI(q){ if(!q||!q.trim())return; this.aiOpen=true; this.aiMessages.push({role:'user',text:q}); this.aiInput=''; this.aiThinking=true; this.scrollAI();
-      setTimeout(()=>{ this.aiThinking=false; this.aiMessages.push({role:'ai',text:this.aiReply(q)}); this.scrollAI(); }, 750+Math.random()*500); },
+    askAI(q){ if(!q||!q.trim())return; this.aiOpen=true; this.aiMessages.push({role:"user",text:q}); this.aiInput=""; this.aiThinking=true; this.scrollAI();
+      setTimeout(()=>{ this.aiThinking=false; this.aiMessages.push({role:"ai",text:this.aiReply(q)}); this.scrollAI(); }, 750+Math.random()*500); },
     aiReply(q){
       const s=q.toLowerCase();
-      if(s.includes('flower b')||s.includes('stress')||s.includes('hot')) return 'Flower B (MAC 1, bulk wk6) is my top concern.\\n\\nWhat I see: VPD '+this.room('flower-b').vpd.toFixed(2)+' kPa and a persistent ~2.6 °C gradient in the back-left corner. CWSI has climbed to '+this.room('flower-b').cwsi.toFixed(2)+'.\\n\\nRoot cause: this tracks lights-on, not outdoor weather — so it\'s internal airflow, not the chiller. The back-left plants are transpiring against drier air than the rest of the canopy.\\n\\nDo this: add a circulation fan aimed at the back-left corner before touching the room RH setpoint (raising RH would over-humidify the healthy 80% of canopy). Re-check the gradient in 30 min.';
-      if(s.includes('harvest')||s.includes('predict')||s.includes('ready')) return 'Next harvest: LA-2540 Runtz in Flower C.\\n\\nIt\'s at 91% of its modeled cycle — dryback has widened to 18% and EC dropped to flush levels (2.2). Projected peak-ripeness window: Jun 8–11.\\n\\nRecommendation: book the trim team for the morning of Jun 8. Estimated yield ~16.2 kg.';
-      if(s.includes('power')||s.includes('energy')) return 'Live facility draw is about '+(this.rooms.reduce((a,r)=>a+(r.lightsOn?2.1:0.5)+r.ppfd/900,1.2)).toFixed(1)+' kW.\\n\\nLighting is 58% of load. Flower B is your heaviest room right now from added dehumidification fighting that corner gradient — fix the airflow and you\'ll claw back ~0.4 kW.\\n\\nQuick win: shift 30% of dehumidification to the post-22:00 off-peak window — roughly $180/wk.';
-      if(s.includes('drift')||s.includes('watch')||s.includes('drifting')) {
-        const w=this.watch.map(x=>'• '+x.title).join('\\n');
-        return 'Leading indicators I\'m watching (not yet alarms):\\n\\n'+(w||'Nothing drifting right now.')+'\\n\\nNone need action yet — I\'ll raise an advisory the moment one crosses into territory that affects yield.';
+      const fb=this.room("flower-b");
+      if(s.includes("flower b")||s.includes("stress")||s.includes("hot"))
+        return "Flower B (MAC 1, bulk wk6) is my top concern.\n\nWhat I see: VPD "+fb.vpd.toFixed(2)+" kPa and a persistent "+fb.sensors.cornerDelta.toFixed(1)+" °C gradient in the back-left corner. CWSI has climbed to "+fb.cwsi.toFixed(2)+".\n\nRoot cause: the gradient tracks lights-on, not outdoor weather — so it is internal airflow, not the chiller. The back-left plants are transpiring against drier air than the rest of the canopy.\n\nDo this: add a circulation fan aimed at the back-left corner before touching the room RH setpoint (raising RH would over-humidify the healthy 80% of canopy). Re-check the gradient in 30 min.";
+      if(s.includes("harvest")||s.includes("predict")||s.includes("ready"))
+        return "Next harvest: LA-2540 Runtz in Flower C.\n\nIt is at 91% of its modeled cycle — dryback has widened to 18% and EC dropped to flush levels (2.2). Projected peak-ripeness window: Jun 8–11.\n\nRecommendation: book the trim team for the morning of Jun 8. Estimated yield ~16.2 kg.";
+      if(s.includes("power")||s.includes("energy"))
+        return "Live facility draw is about "+(this.rooms.reduce((a,r)=>a+(r.lightsOn?2.1:0.5)+r.ppfd/900,1.2)).toFixed(1)+" kW.\n\nLighting is 58% of load. Flower B is your heaviest room right now from added dehumidification fighting that corner gradient — fix the airflow and you claw back ~0.4 kW.\n\nQuick win: shift 30% of dehumidification to the post-22:00 off-peak window — roughly $180/wk.";
+      if(s.includes("drift")||s.includes("watch")||s.includes("drifting")){
+        const w=this.watch.map(x=>"• "+x.title).join("\n");
+        return "Leading indicators on the watchlist (not yet alarms):\n\n"+(w||"Nothing drifting right now.")+"\n\nNone need action yet — an advisory fires the moment one crosses into territory that affects yield.";
       }
-      return 'I read all 6 rooms and 5 active batches live. Right now: '+this.facilityStatus().big.toLowerCase()+'. Ask me about a specific room (e.g. "Flower B"), harvest timing, power, or what\'s drifting.';
+      if(s.includes("blind")||s.includes("sensor"))
+        return this.blindRooms().length
+          ? "Yes — "+this.blindRooms().map(r=>r.name).join(", ")+" has a frozen substrate probe. I have suspended substrate inferences there rather than steering on a dead number. Climate channels still look healthy."
+          : "All sensor channels are moving and plausible. Nothing flatlined; no inference is running blind.";
+      return "I read all 6 rooms and 5 active batches live. Right now: "+this.headline.big.toLowerCase()+". Ask me about a specific room (e.g. \"Flower B\"), harvest timing, power, sensors, or what is drifting.";
     },
-    scrollAI(){ this.$nextTick(()=>{ const e=document.getElementById('aiScroll'); if(e) e.scrollTop=e.scrollHeight; }); },
+    scrollAI(){ this.$nextTick(()=>{ const e=document.getElementById("aiScroll"); if(e) e.scrollTop=e.scrollHeight; }); },
 
     /* ---------- command palette ---------- */
     cmdResults(){
       const q=this.cmdQuery.toLowerCase().trim();
       const items=[
-        ...this.rooms.map(r=>({id:'r-'+r.id,label:r.name+' — '+r.stage,icon:'rooms',kind:'room',act:()=>this.openRoom(r.id)})),
-        ...this.batches.map(b=>({id:'b-'+b.id,label:b.id+' · '+b.strain,icon:'harvest',kind:'batch',act:()=>{this.go('batches');this.batchModal=b;}})),
-        {id:'a-ai',label:'Ask Plant-State AI',icon:'ai',kind:'action',act:()=>this.aiOpen=true},
-        {id:'a-rep',label:'Generate audit pack',icon:'doc',kind:'action',act:()=>{this.go('compliance');this.generateReport();}},
-        {id:'a-energy',label:'Open energy dashboard',icon:'power',kind:'action',act:()=>this.go('energy')},
+        ...this.rooms.map(r=>({id:"r-"+r.id,label:r.name+" — "+r.stage,icon:"rooms",kind:"room",act:()=>this.openRoom(r.id)})),
+        ...this.batches.map(b=>({id:"b-"+b.id,label:b.id+" · "+b.strain,icon:"harvest",kind:"batch",act:()=>{this.go("batches");this.batchModal=b;}})),
+        {id:"a-ai",label:"Ask Plant-State AI",icon:"ai",kind:"action",act:()=>this.aiOpen=true},
+        {id:"a-bands",label:"Edit target bands",icon:"settings",kind:"action",act:()=>this.openBands()},
+        {id:"a-base",label:"Open the basement (raw readings)",icon:"layers",kind:"action",act:()=>{this.go("dashboard");this.basementOpen=true;}},
+        {id:"a-rep",label:"Generate audit pack",icon:"doc",kind:"action",act:()=>{this.go("compliance");this.generateReport();}},
+        {id:"a-energy",label:"Open energy dashboard",icon:"power",kind:"action",act:()=>this.go("energy")},
+        ...this.scenarios.map(sc=>({id:"sc-"+sc.id,label:"Demo: "+sc.label,icon:"flask",kind:"scenario",act:()=>this.runScenario(sc.id)})),
+        {id:"sc-reset",label:"Demo: reset all scenarios",icon:"flask",kind:"scenario",act:()=>this.resetDemo()},
       ];
-      if(!q) return items.slice(0,6);
-      return items.filter(i=>i.label.toLowerCase().includes(q)).slice(0,8);
+      if(!q) return items.slice(0,7);
+      return items.filter(i=>i.label.toLowerCase().includes(q)).slice(0,9);
     },
-    runCmd(c){ this.cmdOpen=false; this.cmdQuery=''; c.act(); },
-    onKey(e){ if((e.metaKey||e.ctrlKey)&&e.key==='k'){ e.preventDefault(); this.cmdOpen=!this.cmdOpen; }
-      if(e.key==='/'&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){ e.preventDefault(); this.cmdOpen=true; } },
+    runCmd(c){ this.cmdOpen=false; this.cmdQuery=""; c.act(); },
+    onKey(e){ if((e.metaKey||e.ctrlKey)&&e.key==="k"){ e.preventDefault(); this.cmdOpen=!this.cmdOpen; }
+      if(e.key==="/"&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){ e.preventDefault(); this.cmdOpen=true; } },
 
     /* ---------- format ---------- */
-    currentTitle(){ return ({dashboard:'Facility Overview',rooms:'Rooms & Zones',batches:'Batches & Harvest',irrigation:'Irrigation & Environment',energy:'Energy & Resources',compliance:'Compliance & Reports',alerts:'Alerts'})[this.view]||'Legacy Ag'; },
-    sevBg(s){ return s==='ok'||s==='optimal'?'bg-emerald-500/15':s==='warn'?'bg-amber-400/15':'bg-red-500/15'; },
-    sevText(s){ return s==='ok'||s==='optimal'?'text-emerald-400':s==='warn'?'text-amber-400':'text-red-400'; },
-    pillClass(s){ return s==='optimal'?'bg-emerald-500/15 text-emerald-300':s==='warn'?'bg-amber-400/15 text-amber-300':'bg-red-500/15 text-red-300'; },
-    dotClass(s){ return s==='optimal'||s==='ok'?'bg-emerald-400 text-emerald-400':s==='warn'?'bg-amber-400 text-amber-400':'bg-red-500 text-red-500'; },
-    statusWord(s){ return s==='optimal'?'Optimal':s==='warn'?'Attention':'Critical'; },
-    ago(ts){ const d=Math.max(0,Math.floor((Date.now()-ts)/1000)); if(d<60)return d+'s'; if(d<3600)return Math.floor(d/60)+'m'; return Math.floor(d/3600)+'h'; },
-    elapsed(ts){ const m=Math.floor((Date.now()-ts)/60000); return Math.floor(m/60)+'h '+(m%60)+'m'; },
+    currentTitle(){ return ({dashboard:"Facility Overview",rooms:"Rooms & Zones",batches:"Batches & Harvest",irrigation:"Irrigation & Environment",energy:"Energy & Resources",compliance:"Compliance & Reports",alerts:"Alerts"})[this.view]||"Legacy Ag"; },
+    sevBg(s){ return s==="ok"||s==="optimal"?"bg-emerald-500/15":s==="warn"?"bg-amber-400/15":"bg-red-500/15"; },
+    sevText(s){ return s==="ok"||s==="optimal"?"text-emerald-400":s==="warn"?"text-amber-400":"text-red-400"; },
+    pillClass(s){ return s==="optimal"?"bg-emerald-500/15 text-emerald-300":s==="warn"?"bg-amber-400/15 text-amber-300":"bg-red-500/15 text-red-300"; },
+    dotClass(s){ return s==="optimal"||s==="ok"?"bg-emerald-400 text-emerald-400":s==="warn"?"bg-amber-400 text-amber-400":"bg-red-500 text-red-500"; },
+    statusWord(s){ return s==="optimal"?"Optimal":s==="warn"?"Attention":"Critical"; },
+    ago(ts){ const d=Math.max(0,Math.floor((Date.now()-ts)/1000)); if(d<60)return d+"s"; if(d<3600)return Math.floor(d/60)+"m"; return Math.floor(d/3600)+"h"; },
+    elapsed(ts){ const m=Math.floor((Date.now()-ts)/60000); return Math.floor(m/60)+"h "+(m%60)+"m"; },
   }));
 });
-function worse(a,b){ const o={optimal:0,ok:0,warn:1,crit:2}; return o[b]>o[a]?b:a; }
-function adv(sev,icon,room,title,detail,action,confidence){ return {id:'a-'+room+'-'+title.slice(0,8).replace(/\s/g,''),sev,icon,room,title,detail,action,confidence,acked:false,ts:Date.now()}; }
-function prefersReduced(){ return window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches; }
 </script>
 <script defer src="https://unpkg.com/alpinejs@3/dist/cdn.min.js"></script>
 </body>

@@ -192,5 +192,6 @@ grasp whole-room health in under 5 seconds. Output ONLY the complete HTML file, 
 
 ---
 
-*Companion to: `whitepaper.html` (From Telemetry to Intelligence). Reference builds: `f2.html` (live, single-room),
-`facility.html` (premium, multi-room demo). Legacy Ag · 2026-06.*
+*Companion to: `whitepaper.html` (From Telemetry to Intelligence). Reference builds: `demo.html` (this repo —
+spec-complete multi-room demo: pure rules engine + evidence chains + basement + editable bands + failure-mode
+scenarios), `f2.html` (live, single-room), `facility.html` (premium, multi-room demo). Legacy Ag · 2026-06.*
